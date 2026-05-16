@@ -8,6 +8,7 @@ const recommendations = document.querySelector("#recommendations");
 const commandLog = document.querySelector("#commandLog");
 const runReviewButton = document.querySelector("#runReviewButton");
 const shareSummaryButton = document.querySelector("#shareSummaryButton");
+const runMaintenanceButton = document.querySelector("#runMaintenanceButton");
 const runMapButton = document.querySelector("#runMapButton");
 const suggestedRoots = document.querySelector("#suggestedRoots");
 const customRootsInput = document.querySelector("#customRootsInput");
@@ -15,9 +16,20 @@ const mapSummaryGrid = document.querySelector("#mapSummaryGrid");
 const mapTeachingNotes = document.querySelector("#mapTeachingNotes");
 const configGrid = document.querySelector("#configGrid");
 const scanResults = document.querySelector("#scanResults");
+const maintenanceSummaryGrid = document.querySelector("#maintenanceSummaryGrid");
+const maintenanceFindings = document.querySelector("#maintenanceFindings");
+const maintenancePlans = document.querySelector("#maintenancePlans");
+const requestInput = document.querySelector("#requestInput");
+const prepareRequestButton = document.querySelector("#prepareRequestButton");
+const requestPlan = document.querySelector("#requestPlan");
+const coachQuestionInput = document.querySelector("#coachQuestionInput");
+const askCoachButton = document.querySelector("#askCoachButton");
+const coachConversation = document.querySelector("#coachConversation");
 const componentTemplate = document.querySelector("#componentTemplate");
 let currentReport = null;
 let currentMap = null;
+let currentMaintenance = null;
+let currentRequestPlan = null;
 
 function setStatus(text) {
   statusText.textContent = text;
@@ -233,6 +245,98 @@ function renderScanResults(map) {
   });
 }
 
+function renderMaintenance(report) {
+  maintenanceSummaryGrid.innerHTML = `
+    <article class="summary-card">
+      <span class="summary-label">Findings</span>
+      <strong>${report.summary.finding_count}</strong>
+    </article>
+    <article class="summary-card">
+      <span class="summary-label">Warnings</span>
+      <strong>${report.summary.severity_counts.warning || 0}</strong>
+    </article>
+    <article class="summary-card">
+      <span class="summary-label">Critical</span>
+      <strong>${report.summary.severity_counts.critical || 0}</strong>
+    </article>
+    <article class="summary-card">
+      <span class="summary-label">Approval plans</span>
+      <strong>${report.summary.approval_required_count}</strong>
+    </article>
+  `;
+
+  maintenanceFindings.innerHTML = "";
+  report.findings.forEach((finding) => {
+    const card = document.createElement("article");
+    card.className = "stack-card";
+    const steps = finding.recommended_next_steps.map((step) => `<li>${step}</li>`).join("");
+    card.innerHTML = `
+      <div class="stack-topline">
+        <h3>${finding.title}</h3>
+        <span class="pill confidence">${finding.severity}</span>
+      </div>
+      <p>${finding.summary}</p>
+      <ul class="text-list compact-list">${steps}</ul>
+    `;
+    maintenanceFindings.appendChild(card);
+  });
+
+  maintenancePlans.innerHTML = "";
+  if (!report.action_plans.length) {
+    maintenancePlans.innerHTML = `<article class="stack-card"><h3>No approval queue yet</h3><p>The current diagnostics did not prepare a maintenance plan.</p></article>`;
+    return;
+  }
+
+  report.action_plans.forEach((plan) => {
+    const card = document.createElement("article");
+    card.className = "stack-card";
+    const commands = plan.commands.map((command) => `<li><code>${command}</code></li>`).join("");
+    card.innerHTML = `
+      <div class="stack-topline">
+        <h3>${plan.title}</h3>
+        <span class="pill">${plan.risk} risk</span>
+      </div>
+      <p>${plan.expected_effect}</p>
+      <p>Requires privilege: ${plan.requires_privilege ? "yes" : "no"} · Reversible: ${plan.reversible ? "yes" : "no"} · Execution enabled: ${plan.execution_enabled ? "yes" : "no"}</p>
+      <ul class="text-list compact-list">${commands}</ul>
+      <p>${plan.approval_prompt}</p>
+    `;
+    maintenancePlans.appendChild(card);
+  });
+}
+
+function renderRequestPlan(plan) {
+  const commands = plan.commands.length
+    ? plan.commands.map((command) => `<li><code>${command}</code></li>`).join("")
+    : "<li>No commands prepared yet.</li>";
+  const manualSteps = plan.manual_steps.map((step) => `<li>${step}</li>`).join("");
+  const rollback = plan.rollback.map((step) => `<li>${step}</li>`).join("");
+  requestPlan.innerHTML = `
+    <article class="stack-card">
+      <div class="stack-topline">
+        <h3>${plan.title}</h3>
+        <span class="pill">${plan.platform}</span>
+      </div>
+      <p>${plan.summary}</p>
+      <p>Risk: ${plan.risk} · Requires privilege: ${plan.requires_privilege ? "yes" : "no"} · Reversible: ${plan.reversible ? "yes" : "no"} · Execution enabled: ${plan.execution_enabled ? "yes" : "no"}</p>
+      <p><strong>Commands</strong></p>
+      <ul class="text-list compact-list">${commands}</ul>
+      <p><strong>Manual steps</strong></p>
+      <ul class="text-list compact-list">${manualSteps}</ul>
+      <p><strong>Rollback</strong></p>
+      <ul class="text-list compact-list">${rollback}</ul>
+      <p>${plan.approval_prompt}</p>
+    </article>
+  `;
+}
+
+function appendCoachMessage(speaker, text) {
+  const entry = document.createElement("div");
+  entry.className = "command-entry";
+  entry.innerHTML = `<code>${speaker}</code><p>${text}</p>`;
+  coachConversation.appendChild(entry);
+}
+
 async function loadScanOptions() {
   const response = await fetch("/api/scan-options", { cache: "no-store" });
   if (!response.ok) {
@@ -295,6 +399,15 @@ async function copyShareSummary() {
     lines.push(`Configs detected: ${currentMap.summary.configs_detected}`);
   }
 
+  if (currentMaintenance) {
+    lines.push("");
+    lines.push(`Maintenance findings: ${currentMaintenance.summary.finding_count}`);
+    lines.push(`Approval-required plans: ${currentMaintenance.summary.approval_required_count}`);
+    currentMaintenance.findings
+      .slice(0, 8)
+      .forEach((finding) => lines.push(`- ${finding.title} [${finding.severity}]: ${finding.summary}`));
+  }
+
   lines.push("");
   lines.push("Generated locally on this machine.");
   const summary = lines.join("\n");
@@ -305,6 +418,95 @@ async function copyShareSummary() {
   } catch (error) {
     console.error(error);
     setStatus("Clipboard copy failed in this browser session.");
+  }
+}
+
+async function runMaintenance() {
+  setStatus("Running read-only maintenance diagnostics...");
+  runMaintenanceButton.disabled = true;
+  try {
+    const response = await fetch("/api/maintenance", { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`Maintenance request failed with status ${response.status}`);
+    }
+    currentMaintenance = await response.json();
+    renderMaintenance(currentMaintenance);
+    setStatus("Maintenance diagnostics complete. No fixes were executed.");
+  } catch (error) {
+    console.error(error);
+    setStatus(`Maintenance diagnostics failed: ${error.message}`);
+  } finally {
+    runMaintenanceButton.disabled = false;
+  }
+}
+
+async function prepareRequestPlan() {
+  const request = requestInput.value.trim();
+  if (!request) {
+    setStatus("Describe a maintenance request before preparing a plan.");
+    return;
+  }
+  setStatus("Preparing an approval-required plan...");
+  prepareRequestButton.disabled = true;
+  try {
+    const response = await fetch("/api/request-plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        request,
+        os_name: currentReport?.environment?.os || currentMaintenance?.metrics?.platform?.os,
+        desktop_hint:
+          currentReport?.environment?.desktop ||
+          currentMaintenance?.metrics?.desktop?.current_desktop,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`Request plan failed with status ${response.status}`);
+    }
+    currentRequestPlan = await response.json();
+    renderRequestPlan(currentRequestPlan);
+    appendCoachMessage("Plan", `${currentRequestPlan.title}\nExecution enabled: ${currentRequestPlan.execution_enabled}`);
+    setStatus("Approval-required plan prepared. No change was executed.");
+  } catch (error) {
+    console.error(error);
+    setStatus(`Request plan failed: ${error.message}`);
+  } finally {
+    prepareRequestButton.disabled = false;
+  }
+}
+
+async function askCoach() {
+  const question = coachQuestionInput.value.trim();
+  if (!question) {
+    setStatus("Type a question for the local coach first.");
+    return;
+  }
+  appendCoachMessage("You", question);
+  setStatus("Local AI is thinking...");
+  askCoachButton.disabled = true;
+  try {
+    const response = await fetch("/api/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        question,
+        report: currentReport,
+        system_map: currentMap,
+        maintenance_report: currentMaintenance,
+        request_plan: currentRequestPlan,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`Coach request failed with status ${response.status}`);
+    }
+    const payload = await response.json();
+    appendCoachMessage(`Coach [${payload.model || "local engine unavailable"}]`, payload.answer);
+    setStatus("Coach answer ready.");
+  } catch (error) {
+    console.error(error);
+    setStatus(`Coach request failed: ${error.message}`);
+  } finally {
+    askCoachButton.disabled = false;
   }
 }
 
@@ -337,8 +539,12 @@ async function runReview() {
 runMapButton.addEventListener("click", runMap);
 shareSummaryButton.addEventListener("click", copyShareSummary);
 runReviewButton.addEventListener("click", runReview);
+runMaintenanceButton.addEventListener("click", runMaintenance);
+prepareRequestButton.addEventListener("click", prepareRequestPlan);
+askCoachButton.addEventListener("click", askCoach);
 loadScanOptions().catch((error) => {
   console.error(error);
   setStatus(`Could not load scan options: ${error.message}`);
 });
 runReview();
+runMaintenance();

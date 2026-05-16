@@ -1,6 +1,7 @@
 project_name: system-stack-review-and-coach
 project_type: internal-tool
 risk_tier: medium
+governance_level: 1
 repository_model: single-repo
 owner:
   name: Adam Goodwin
@@ -21,6 +22,8 @@ controls:
   required_docs:
     - README.md
     - docs/architecture.md
+    - docs/manual.md
+    - docs/roadmap.md
     - docs/deployment-guide.md
     - docs/runbook.md
     - docs/CHANGELOG.md
@@ -36,7 +39,7 @@ agent_controls:
   autonomy_level: A1
   model_registry:
     - provider: ollama
-      model: qwen3:8b
+      model: gemma4:latest
       role: local-coach-engine
   prompt_registry:
     - local-probe-agent-command-set

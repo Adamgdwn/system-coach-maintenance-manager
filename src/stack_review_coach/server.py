@@ -11,7 +11,11 @@ import threading
 import webbrowser
 
 from .agents import build_agents
+from .ai_engine import answer_question
+from .diagnostics import collect_diagnostics
+from .maintenance_reporting import generate_maintenance_report
 from .reporting import generate_report
+from .request_plans import prepare_request_plan
 from .scanner import map_filesystem, suggest_roots
 
 
@@ -21,6 +25,10 @@ WEB_ROOT = Path(__file__).resolve().parent / "web"
 def build_report() -> dict:
     results = [agent.run() for agent in build_agents()]
     return generate_report(results)
+
+
+def build_maintenance_report() -> dict:
+    return generate_maintenance_report(collect_diagnostics())
 
 
 class StackCoachHandler(SimpleHTTPRequestHandler):
@@ -43,6 +51,9 @@ class StackCoachHandler(SimpleHTTPRequestHandler):
         if self.path == "/api/scan-options":
             self._send_json({"suggested_roots": suggest_roots()})
             return
+        if self.path == "/api/maintenance":
+            self._send_json(build_maintenance_report())
+            return
         if self.path == "/health":
             self.send_response(HTTPStatus.OK)
             self.end_headers()
@@ -51,7 +62,7 @@ class StackCoachHandler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self) -> None:
-        if self.path != "/api/map":
+        if self.path not in {"/api/map", "/api/request-plan", "/api/ask"}:
             self.send_error(HTTPStatus.NOT_FOUND, "Not found")
             return
 
@@ -61,6 +72,31 @@ class StackCoachHandler(SimpleHTTPRequestHandler):
             payload = json.loads(raw_body.decode("utf-8") or "{}")
         except json.JSONDecodeError:
             self.send_error(HTTPStatus.BAD_REQUEST, "Invalid JSON payload")
+            return
+
+        if self.path == "/api/request-plan":
+            request_text = str(payload.get("request", ""))
+            os_name = payload.get("os_name")
+            desktop_hint = payload.get("desktop_hint")
+            self._send_json(
+                prepare_request_plan(
+                    request_text,
+                    os_name=str(os_name) if os_name else None,
+                    distribution_hint=str(desktop_hint) if desktop_hint else None,
+                )
+            )
+            return
+
+        if self.path == "/api/ask":
+            question = str(payload.get("question", ""))
+            response = answer_question(
+                question,
+                payload.get("report"),
+                payload.get("system_map"),
+                payload.get("maintenance_report"),
+                payload.get("request_plan"),
+            )
+            self._send_json(response)
             return
 
         roots = payload.get("roots", [])

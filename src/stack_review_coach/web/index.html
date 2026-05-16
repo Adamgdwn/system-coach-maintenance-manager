@@ -18,6 +18,7 @@
           </p>
           <div class="hero-actions">
             <button id="runReviewButton">Run Local Review</button>
+            <button id="runMaintenanceButton" class="secondary-button">Run Maintenance Diagnostics</button>
             <button id="shareSummaryButton" class="secondary-button">Copy Share Summary</button>
             <span class="subtle">Nothing leaves your machine. Reviews happen through local command probes.</span>
           </div>
@@ -108,6 +109,63 @@
             <p>Marker-based discovery of likely projects, repos, and interesting directories.</p>
           </div>
           <div id="scanResults" class="stack-list"></div>
+        </section>
+
+        <section class="two-up">
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Maintenance Diagnostics</h2>
+              <p>Read-only health checks, ranked findings, and troubleshooting evidence.</p>
+            </div>
+            <div id="maintenanceSummaryGrid" class="summary-grid"></div>
+            <div id="maintenanceFindings" class="stack-list"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Approval-Required Plans</h2>
+              <p>Prepared commands and expected effects. Execution is disabled in this phase.</p>
+            </div>
+            <div id="maintenancePlans" class="stack-list"></div>
+          </section>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Request Desk</h2>
+            <p>Describe a specific change. The app prepares an approval-required plan and does not execute it.</p>
+          </div>
+          <div class="scan-controls">
+            <textarea
+              id="requestInput"
+              rows="3"
+              placeholder="My cursor size seems odd. Make it smaller."
+            ></textarea>
+            <div class="scan-actions">
+              <button id="prepareRequestButton">Prepare Approval Plan</button>
+              <span class="subtle">Plans show commands, risk, reversibility, and approval gates.</span>
+            </div>
+            <div id="requestPlan" class="stack-list"></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Coach Chat</h2>
+            <p>Ask follow-up questions using the local model and current review, map, maintenance, and request-plan context.</p>
+          </div>
+          <div class="scan-controls">
+            <textarea
+              id="coachQuestionInput"
+              rows="3"
+              placeholder="What should I check before changing my cursor size?"
+            ></textarea>
+            <div class="scan-actions">
+              <button id="askCoachButton">Ask Local AI</button>
+              <span class="subtle">Answers stay local through Ollama when it is available.</span>
+            </div>
+            <div id="coachConversation" class="command-log"></div>
+          </div>
         </section>
 
         <section class="two-up">

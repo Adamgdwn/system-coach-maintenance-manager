@@ -115,6 +115,13 @@ COMPONENT_KNOWLEDGE = {
         "pairs_well_with": ["python3", "pip", "venv"],
         "learning_tip": "uv can simplify Python setup by handling environments and installs in one workflow.",
     },
+    "flatpak": {
+        "label": "Flatpak",
+        "category": "package-manager",
+        "role": "A desktop app packaging system that installs GUI tools in a sandboxed, user-friendly way.",
+        "pairs_well_with": ["gimp", "krita", "inkscape", "chromium"],
+        "learning_tip": "Flatpak apps may not appear as plain `/usr/bin` commands, so environment scanners often need to check app IDs too.",
+    },
     "venv": {
         "label": "venv",
         "category": "environment",
@@ -128,6 +135,76 @@ COMPONENT_KNOWLEDGE = {
         "role": "Runs repeatable task recipes from a Makefile.",
         "pairs_well_with": ["git", "docker", "python3", "go"],
         "learning_tip": "Try `make help` when a repo includes a Makefile; it's often the quickest way to discover workflows.",
+    },
+    "inkscape": {
+        "label": "Inkscape",
+        "category": "creative",
+        "role": "A vector graphics editor used for diagrams, roadmap graphics, logos, and printable layouts.",
+        "pairs_well_with": ["rsvg-convert", "chromium", "gimp", "svgo"],
+        "learning_tip": "Vector tools are ideal when you want artwork that stays sharp in PDFs, slide decks, and large-format prints.",
+    },
+    "convert": {
+        "label": "ImageMagick",
+        "category": "creative",
+        "role": "A command-line image toolbox for resizing, compositing, format conversion, and quick batch edits.",
+        "pairs_well_with": ["ffmpeg", "inkscape", "chromium"],
+        "learning_tip": "When a workflow needs lots of export variants, command-line image tools can save a huge amount of manual effort.",
+    },
+    "magick": {
+        "label": "ImageMagick",
+        "category": "creative",
+        "role": "The newer ImageMagick command entry point for image conversion and scripted graphic processing.",
+        "pairs_well_with": ["convert", "ffmpeg", "inkscape"],
+        "learning_tip": "Some systems expose `convert`, others expose `magick`, and some include both. They are clues to the same family of tooling.",
+    },
+    "rsvg-convert": {
+        "label": "librsvg",
+        "category": "creative",
+        "role": "A fast SVG conversion tool that helps turn vector artwork into PNG, PDF, or other output formats.",
+        "pairs_well_with": ["inkscape", "svgo", "chromium"],
+        "learning_tip": "SVG converters are especially useful when a design starts as code or vector art and needs a clean export path.",
+    },
+    "ffmpeg": {
+        "label": "FFmpeg",
+        "category": "media",
+        "role": "A command-line media toolkit for video, audio, animation, and screen-recording workflows.",
+        "pairs_well_with": ["chromium", "convert", "playwright"],
+        "learning_tip": "FFmpeg is great for turning rendered frames or screen captures into polished demo clips and lightweight animations.",
+    },
+    "chromium": {
+        "label": "Chromium",
+        "category": "browser",
+        "role": "A browser engine that can be used for interactive testing, screenshots, PDF output, and visual QA.",
+        "pairs_well_with": ["playwright", "inkscape", "ffmpeg"],
+        "learning_tip": "A modern browser is not only for browsing. It is often part of the design, testing, and export toolchain too.",
+    },
+    "playwright": {
+        "label": "Playwright",
+        "category": "automation",
+        "role": "A browser automation tool used for testing, screenshots, PDF export, and repeatable UI checks.",
+        "pairs_well_with": ["chromium", "node", "npm", "ffmpeg"],
+        "learning_tip": "Playwright becomes especially powerful when you want the computer to render the same page or asset reliably over and over.",
+    },
+    "svgo": {
+        "label": "SVGO",
+        "category": "automation",
+        "role": "An SVG optimizer that cleans and compresses vector files for shipping on the web or in product assets.",
+        "pairs_well_with": ["inkscape", "rsvg-convert", "node"],
+        "learning_tip": "Optimizing SVGs keeps asset sizes down and makes hand-edited vector files easier to maintain in a repository.",
+    },
+    "gimp": {
+        "label": "GIMP",
+        "category": "creative",
+        "role": "A raster image editor used for texture work, photo edits, halftones, poster treatments, and painted effects.",
+        "pairs_well_with": ["inkscape", "krita", "convert", "flatpak"],
+        "learning_tip": "Raster tools are strongest when you need texture, brush work, or pixel-specific effects rather than endlessly scalable shapes.",
+    },
+    "krita": {
+        "label": "Krita",
+        "category": "creative",
+        "role": "A digital painting and illustration tool that is well-suited to stylized artwork, concept art, and comic-inspired visuals.",
+        "pairs_well_with": ["gimp", "inkscape", "flatpak"],
+        "learning_tip": "Krita is a strong clue that the machine can support more illustrative, hand-drawn, or painterly creative workflows.",
     },
 }
 
@@ -157,6 +234,14 @@ STACK_PATTERNS = [
         "summary": "Containers are part of this setup, which usually means reproducible local environments.",
         "coaching": "A helpful learning path is understanding images, containers, volumes, and multi-service compose files.",
     },
+    {
+        "id": "creative-presentation-toolkit",
+        "title": "Creative And Presentation Toolkit",
+        "requires": {"inkscape"},
+        "signals": {"gimp", "krita", "convert", "magick", "rsvg-convert", "ffmpeg", "chromium", "playwright", "svgo"},
+        "summary": "This environment supports visual design, browser rendering, and export workflows for polished demos or client-facing assets.",
+        "coaching": "A strong next step is learning how vector editing, raster treatment, browser rendering, and automated export work together.",
+    },
 ]
 
 
@@ -179,4 +264,3 @@ def describe_component(command_name: str) -> dict:
             "Use this as a clue about the kind of projects this environment may be prepared to run.",
         ),
     }
-

@@ -7,7 +7,7 @@
 - Standard: Governance preflight execution
 - Status: Closed
 - Approval date: 2026-04-05
-- Review date: 2026-04-05
+- Review date: 2026-05-16
 
 ## Deviation
 
@@ -23,7 +23,7 @@ Before closure, an external policy check could have been skipped, increasing the
 
 ## Compensating Controls
 
-The governance repository was found at `/home/adamgoodwin/code/Rules of Development and Deployment`, `GOVERNANCE_HOME` was configured in shell startup, and the project preflight was rerun successfully.
+The repository now includes `automation/governance_check.sh`, and `scripts/governance-preflight.sh` runs that local checker directly. The project no longer depends on an external `GOVERNANCE_HOME` path for the required preflight gate.
 
 ## Approvals
 

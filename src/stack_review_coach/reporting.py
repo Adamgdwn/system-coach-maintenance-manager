@@ -59,6 +59,20 @@ def _build_recommendations(installed_commands: set[str]) -> list[str]:
         recommendations.append(
             "Docker plus Git is a strong combo for reproducible development. Look for `Dockerfile` and compose files in projects to see how services are assembled."
         )
+    if "inkscape" in installed_commands and (
+        {"gimp", "krita", "convert", "magick", "chromium", "ffmpeg"} & installed_commands
+    ):
+        recommendations.append(
+            "This machine includes a creative production toolkit. You can combine vector design, raster effects, browser rendering, and export tooling to build polished visuals and shareable client assets."
+        )
+    if "playwright" in installed_commands and "chromium" in installed_commands:
+        recommendations.append(
+            "Playwright plus Chromium means the machine can automate screenshots, PDF export, and repeatable visual checks. That is useful when you want designs or demo pages rendered consistently."
+        )
+    if "flatpak" in installed_commands and ({"gimp", "krita"} & installed_commands):
+        recommendations.append(
+            "Some design apps are installed through Flatpak. That is normal for desktop tools, but scanners and scripts may need to account for app IDs instead of assuming a plain shell command exists."
+        )
     if "git" not in installed_commands:
         recommendations.append(
             "Git was not detected. Installing Git is one of the highest-leverage steps for learning and collaborating in modern codebases."

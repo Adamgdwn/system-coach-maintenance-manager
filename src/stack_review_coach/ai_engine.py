@@ -10,7 +10,7 @@ import urllib.request
 
 OLLAMA_URL = "http://127.0.0.1:11434"
 DEFAULT_TIMEOUT = 45
-PREFERRED_MODELS = ["qwen3:8b", "qwen3", "llama3.1:8b", "mistral"]
+PREFERRED_MODELS = ["gemma4:latest", "gemma4", "gemma4:e4b", "qwen3:8b", "qwen3", "llama3.1:8b", "mistral"]
 
 
 def _post_json(path: str, payload: dict[str, Any], timeout: int = DEFAULT_TIMEOUT) -> dict[str, Any]:
@@ -70,7 +70,12 @@ def choose_model(models: list[str]) -> str | None:
     return models[0]
 
 
-def build_context(report: dict | None, system_map: dict | None = None) -> str:
+def build_context(
+    report: dict | None,
+    system_map: dict | None = None,
+    maintenance_report: dict | None = None,
+    request_plan: dict | None = None,
+) -> str:
     if not report:
         return "No system report is available yet. Ask the user to run a local review first."
 
@@ -123,10 +128,52 @@ def build_context(report: dict | None, system_map: dict | None = None) -> str:
         if system_map.get("config_findings"):
             lines.extend(["", "Config findings:"])
             lines.extend(f"- {item['label']}: {item['path']}" for item in system_map["config_findings"][:20])
+
+    if maintenance_report:
+        lines.extend(
+            [
+                "",
+                "Maintenance diagnostics summary:",
+                *[f"- {key}: {value}" for key, value in maintenance_report["summary"].items()],
+                "",
+                "Maintenance findings:",
+            ]
+        )
+        for finding in maintenance_report.get("findings", [])[:12]:
+            lines.append(
+                f"- {finding['title']} [{finding['severity']}]: {finding['summary']} "
+                f"| next: {'; '.join(finding['recommended_next_steps'][:2])}"
+            )
+        if maintenance_report.get("action_plans"):
+            lines.extend(["", "Approval-required maintenance plans:"])
+            for plan in maintenance_report["action_plans"][:8]:
+                lines.append(
+                    f"- {plan['title']} risk={plan['risk']} privilege={plan['requires_privilege']} "
+                    f"execution_enabled={plan['execution_enabled']}"
+                )
+    if request_plan:
+        lines.extend(
+            [
+                "",
+                "Latest user-requested approval plan:",
+                f"- title: {request_plan['title']}",
+                f"- platform: {request_plan['platform']}",
+                f"- risk: {request_plan['risk']}",
+                f"- requires_privilege: {request_plan['requires_privilege']}",
+                f"- execution_enabled: {request_plan['execution_enabled']}",
+                f"- approval_prompt: {request_plan['approval_prompt']}",
+            ]
+        )
     return "\n".join(lines)
 
 
-def answer_question(question: str, report: dict | None, system_map: dict | None = None) -> dict[str, Any]:
+def answer_question(
+    question: str,
+    report: dict | None,
+    system_map: dict | None = None,
+    maintenance_report: dict | None = None,
+    request_plan: dict | None = None,
+) -> dict[str, Any]:
     status = get_engine_status()
     if not status["available"]:
         return {
@@ -137,7 +184,7 @@ def answer_question(question: str, report: dict | None, system_map: dict | None 
 
     prompt = "\n\n".join(
         [
-            build_context(report, system_map),
+            build_context(report, system_map, maintenance_report, request_plan),
             "User question:",
             question.strip(),
             "",

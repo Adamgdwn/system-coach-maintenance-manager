@@ -14,14 +14,21 @@ from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 
 from .agents import build_agents
 from .ai_engine import answer_question, get_engine_status
+from .diagnostics import collect_diagnostics
 from .exporting import build_share_text
+from .maintenance_reporting import generate_maintenance_report
 from .reporting import generate_report
+from .request_plans import format_request_plan, prepare_request_plan
 from .scanner import map_filesystem, suggest_roots
 
 
 def build_report() -> dict:
     results = [agent.run() for agent in build_agents()]
     return generate_report(results)
+
+
+def build_maintenance_report() -> dict:
+    return generate_maintenance_report(collect_diagnostics())
 
 
 class StackCoachWindow(Gtk.ApplicationWindow):
@@ -34,6 +41,8 @@ class StackCoachWindow(Gtk.ApplicationWindow):
 
         self.current_report: dict | None = None
         self.current_map: dict | None = None
+        self.current_maintenance: dict | None = None
+        self.current_request_plan: dict | None = None
         self.engine_status: dict | None = None
 
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
@@ -67,6 +76,10 @@ class StackCoachWindow(Gtk.ApplicationWindow):
         self.map_button = Gtk.Button(label="Scan Selected Roots")
         self.map_button.connect("clicked", self.on_run_map)
         action_row.add(self.map_button)
+
+        self.maintenance_button = Gtk.Button(label="Run Maintenance Diagnostics")
+        self.maintenance_button.connect("clicked", self.on_run_maintenance)
+        action_row.add(self.maintenance_button)
 
         self.share_button = Gtk.Button(label="Copy Share Summary")
         self.share_button.connect("clicked", self.on_copy_summary)
@@ -116,6 +129,11 @@ class StackCoachWindow(Gtk.ApplicationWindow):
         notebook.append_page(self.scan_page, Gtk.Label(label="Find And Map"))
         self._build_scan_page()
 
+        self.maintenance_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        self.maintenance_page.set_border_width(6)
+        notebook.append_page(self.maintenance_page, Gtk.Label(label="Maintenance"))
+        self._build_maintenance_page()
+
         self.coach_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         self.coach_page.set_border_width(6)
         notebook.append_page(self.coach_page, Gtk.Label(label="Ask The Coach"))
@@ -128,6 +146,7 @@ class StackCoachWindow(Gtk.ApplicationWindow):
         self.show_all()
         self._refresh_engine_status()
         self.on_run_review(None)
+        self.on_run_maintenance(None)
 
     def _make_text_view(self) -> Gtk.TextView:
         view = Gtk.TextView()
@@ -207,6 +226,40 @@ class StackCoachWindow(Gtk.ApplicationWindow):
         self.map_results_view = self._make_text_view()
         self.scan_page.pack_start(self._frame("System Map", self.map_results_view), True, True, 0)
 
+    def _build_maintenance_page(self) -> None:
+        intro = Gtk.Label(
+            label=(
+                "Run read-only diagnostics for system health, troubleshooting evidence, and approval-required "
+                "maintenance plans. This phase prepares plans but does not execute fixes."
+            )
+        )
+        intro.set_xalign(0)
+        intro.set_line_wrap(True)
+        self.maintenance_page.pack_start(intro, False, False, 0)
+
+        action_row = self._make_wrapping_flow()
+        self.maintenance_page.pack_start(action_row, False, False, 0)
+
+        self.maintenance_page_button = Gtk.Button(label="Diagnose System Health")
+        self.maintenance_page_button.connect("clicked", self.on_run_maintenance)
+        action_row.add(self.maintenance_page_button)
+
+        self.maintenance_summary_view = self._make_text_view()
+        self.maintenance_page.pack_start(
+            self._frame("Maintenance Summary And Findings", self.maintenance_summary_view),
+            True,
+            True,
+            0,
+        )
+
+        self.maintenance_plans_view = self._make_text_view()
+        self.maintenance_page.pack_start(
+            self._frame("Approval-Required Plans", self.maintenance_plans_view),
+            True,
+            True,
+            0,
+        )
+
     def _build_coach_page(self) -> None:
         intro = Gtk.Label(
             label=(
@@ -225,6 +278,8 @@ class StackCoachWindow(Gtk.ApplicationWindow):
             "What should I learn next?",
             "How do these tools fit together?",
             "What did the folder scan reveal?",
+            "What maintenance issue should I check first?",
+            "My cursor size seems odd. Make it smaller.",
         ]:
             button = Gtk.Button(label=prompt)
             button.connect("clicked", self.on_prompt_clicked, prompt)
@@ -241,12 +296,19 @@ class StackCoachWindow(Gtk.ApplicationWindow):
         self.ask_button.connect("clicked", self.on_ask_coach)
         coach_actions.add(self.ask_button)
 
+        self.prepare_request_button = Gtk.Button(label="Prepare Approval Plan")
+        self.prepare_request_button.connect("clicked", self.on_prepare_request_plan)
+        coach_actions.add(self.prepare_request_button)
+
         self.refresh_engine_button = Gtk.Button(label="Refresh AI Status")
         self.refresh_engine_button.connect("clicked", self.on_refresh_engine_clicked)
         coach_actions.add(self.refresh_engine_button)
 
         self.coach_view = self._make_text_view()
         self.coach_page.pack_start(self._frame("Coach Conversation", self.coach_view), True, True, 0)
+
+        self.request_plan_view = self._make_text_view()
+        self.coach_page.pack_start(self._frame("Latest Approval Plan", self.request_plan_view), True, True, 0)
 
     def _set_text(self, view: Gtk.TextView, text: str) -> None:
         buffer_ = view.get_buffer()
@@ -434,13 +496,87 @@ class StackCoachWindow(Gtk.ApplicationWindow):
         self.map_button.set_sensitive(True)
         return False
 
+    def on_run_maintenance(self, _button: Gtk.Button | None) -> None:
+        self.maintenance_button.set_sensitive(False)
+        self.maintenance_page_button.set_sensitive(False)
+        self._set_status("Running read-only maintenance diagnostics...")
+        threading.Thread(target=self._run_maintenance_worker, daemon=True).start()
+
+    def _run_maintenance_worker(self) -> None:
+        try:
+            maintenance_report = build_maintenance_report()
+            GLib.idle_add(self._apply_maintenance_report, maintenance_report)
+        except Exception as exc:
+            GLib.idle_add(self._set_status, f"Maintenance diagnostics failed: {exc}")
+            GLib.idle_add(self.maintenance_button.set_sensitive, True)
+            GLib.idle_add(self.maintenance_page_button.set_sensitive, True)
+
+    def _apply_maintenance_report(self, maintenance_report: dict) -> bool:
+        self.current_maintenance = maintenance_report
+        summary = maintenance_report["summary"]
+        sections = [
+            f"Generated: {maintenance_report['generated_at']}",
+            f"Findings: {summary['finding_count']}",
+            f"Status counts: {json.dumps(summary['status_counts'], indent=2)}",
+            f"Severity counts: {json.dumps(summary['severity_counts'], indent=2)}",
+            f"Approval-required plans: {summary['approval_required_count']}",
+            f"Execution enabled: {summary['execution_enabled']}",
+            "",
+            "Recommendations:",
+            *[f"- {item}" for item in maintenance_report["recommendations"]],
+            "",
+            "Findings:",
+        ]
+        for finding in maintenance_report["findings"]:
+            sections.extend(
+                [
+                    f"- {finding['title']} [{finding['severity']} / {finding['status']}]",
+                    f"  {finding['summary']}",
+                    f"  Next: {'; '.join(finding['recommended_next_steps'])}",
+                ]
+            )
+        self._set_text(self.maintenance_summary_view, "\n".join(sections))
+
+        if maintenance_report["action_plans"]:
+            plan_sections = []
+            for plan in maintenance_report["action_plans"]:
+                plan_sections.extend(
+                    [
+                        f"{plan['title']}",
+                        f"Risk: {plan['risk']}",
+                        f"Requires privilege: {plan['requires_privilege']}",
+                        f"Reversible: {plan['reversible']}",
+                        f"Execution enabled: {plan['execution_enabled']}",
+                        "Commands:",
+                        *[f"- {command}" for command in plan["commands"]],
+                        f"Expected effect: {plan['expected_effect']}",
+                        f"Approval gate: {plan['approval_prompt']}",
+                        "",
+                    ]
+                )
+            self._set_text(self.maintenance_plans_view, "\n".join(plan_sections).strip())
+        else:
+            self._set_text(
+                self.maintenance_plans_view,
+                "No approval-required maintenance plans were prepared from the current diagnostics.",
+            )
+
+        self._append_text(
+            self.coach_view,
+            "System: Maintenance diagnostics complete. Ask the coach which finding to inspect first or how to prepare an approval-safe plan.",
+        )
+        self._set_status("Maintenance diagnostics complete. No fixes were executed.")
+        self.maintenance_button.set_sensitive(True)
+        self.maintenance_page_button.set_sensitive(True)
+        return False
+
     def on_copy_summary(self, _button: Gtk.Button | None) -> None:
         if not self.current_report:
             self._set_status("Run a review before copying a share summary.")
             return
 
         clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
-        clipboard.set_text(build_share_text(self.current_report, self.current_map), -1)
+        clipboard.set_text(build_share_text(self.current_report, self.current_map, self.current_maintenance), -1)
         self._set_status("Share summary copied to the clipboard.")
 
     def on_refresh_engine_clicked(self, _button: Gtk.Button | None) -> None:
@@ -449,7 +585,31 @@ class StackCoachWindow(Gtk.ApplicationWindow):
 
     def on_prompt_clicked(self, _button: Gtk.Button | None, prompt: str) -> None:
         self.question_entry.set_text(prompt)
+        if "cursor" in prompt.lower():
+            self.on_prepare_request_plan(None)
+            return
         self.on_ask_coach(None)
+
+    def on_prepare_request_plan(self, _widget: Gtk.Widget | None) -> None:
+        request_text = self.question_entry.get_text().strip()
+        if not request_text:
+            self._set_status("Type a maintenance request before preparing a plan.")
+            return
+
+        environment = (self.current_report or {}).get("environment", {})
+        maintenance_desktop = (self.current_maintenance or {}).get("metrics", {}).get("desktop", {})
+        desktop_hint = environment.get("desktop") or maintenance_desktop.get("current_desktop")
+        plan = prepare_request_plan(
+            request_text,
+            os_name=environment.get("os") or (self.current_maintenance or {}).get("metrics", {}).get("platform", {}).get("os"),
+            distribution_hint=desktop_hint,
+        )
+        self.current_request_plan = plan
+        formatted = format_request_plan(plan)
+        self._set_text(self.request_plan_view, formatted)
+        self._append_text(self.coach_view, f"You: {request_text}")
+        self._append_text(self.coach_view, f"Plan [{plan['platform']}]:\n{formatted}")
+        self._set_status("Approval-required plan prepared. No change was executed.")
 
     def on_ask_coach(self, _widget: Gtk.Widget | None) -> None:
         question = self.question_entry.get_text().strip()
@@ -462,7 +622,13 @@ class StackCoachWindow(Gtk.ApplicationWindow):
         threading.Thread(target=self._ask_coach_worker, args=(question,), daemon=True).start()
 
     def _ask_coach_worker(self, question: str) -> None:
-        response = answer_question(question, self.current_report, self.current_map)
+        response = answer_question(
+            question,
+            self.current_report,
+            self.current_map,
+            self.current_maintenance,
+            self.current_request_plan,
+        )
         GLib.idle_add(self._apply_coach_answer, response)
 
     def _apply_coach_answer(self, response: dict) -> bool:

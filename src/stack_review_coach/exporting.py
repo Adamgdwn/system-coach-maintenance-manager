@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-def build_share_text(report: dict, system_map: dict | None = None) -> str:
+def build_share_text(report: dict, system_map: dict | None = None, maintenance_report: dict | None = None) -> str:
     lines = [
         "System Stack Review and Coach",
         "",
@@ -33,6 +33,15 @@ def build_share_text(report: dict, system_map: dict | None = None) -> str:
         lines.append(f"- Configs detected: {system_map['summary']['configs_detected']}")
         for scan in system_map.get("scans", [])[:8]:
             lines.append(f"- {scan['root']}: {scan['summary']['projects_detected']} projects")
+
+    if maintenance_report:
+        lines.append("")
+        lines.append("Maintenance diagnostics:")
+        lines.append(f"- Findings: {maintenance_report['summary']['finding_count']}")
+        lines.append(f"- Severity counts: {maintenance_report['summary']['severity_counts']}")
+        lines.append(f"- Approval-required plans: {maintenance_report['summary']['approval_required_count']}")
+        for finding in maintenance_report.get("findings", [])[:8]:
+            lines.append(f"- {finding['title']} [{finding['severity']}]: {finding['summary']}")
 
     lines.append("")
     lines.append("This summary was generated locally.")
