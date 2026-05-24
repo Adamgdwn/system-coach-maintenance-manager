@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -11,9 +12,10 @@ import threading
 import webbrowser
 
 from .agents import build_agents
+from .action_plan_registry import execute_registered_action, register_action_plan
 from .ai_engine import answer_question, reason_about_request
 from .diagnostics import collect_diagnostics
-from .maintenance_actions import build_action_contract, execute_guarded_action
+from .maintenance_actions import build_action_contract
 from .maintenance_history import load_history, record_maintenance_report, record_request_plan
 from .maintenance_history import record_action_result
 from .maintenance_reporting import generate_maintenance_report
@@ -39,8 +41,28 @@ def build_report() -> dict:
 
 def build_maintenance_report() -> dict:
     report = generate_maintenance_report(collect_diagnostics())
+    report["action_plans"] = [register_action_plan(plan) for plan in report.get("action_plans", [])]
     record_maintenance_report(report)
     return report
+
+
+def _blocked_execution_request(error: str, server_plan_id: str | None = None) -> dict:
+    now = dt.datetime.now().isoformat(timespec="seconds")
+    return {
+        "action_id": None,
+        "plan_id": None,
+        "server_plan_id": server_plan_id,
+        "status": "blocked",
+        "started_at": now,
+        "finished_at": now,
+        "execution_enabled": False,
+        "exit_code": None,
+        "commands": [],
+        "output": "",
+        "error": error,
+        "post_check": [],
+        "rollback": [],
+    }
 
 
 class SystemCoachHandler(SimpleHTTPRequestHandler):
@@ -139,6 +161,7 @@ class SystemCoachHandler(SimpleHTTPRequestHandler):
                 family_override=reasoning.get("family"),
                 reasoning=reasoning,
             )
+            plan = register_action_plan(plan)
             record_request_plan(plan)
             self._send_json(plan)
             return
@@ -152,11 +175,13 @@ class SystemCoachHandler(SimpleHTTPRequestHandler):
             return
 
         if self.path == "/api/action-run":
-            contract = payload.get("contract")
-            if not isinstance(contract, dict):
-                self.send_error(HTTPStatus.BAD_REQUEST, "contract must be an object")
+            server_plan_id = str(payload.get("plan_id", "")).strip()
+            if not server_plan_id:
+                result = _blocked_execution_request("execution requires a server-side plan_id")
+                record_action_result(result)
+                self._send_json(result, HTTPStatus.BAD_REQUEST)
                 return
-            result = execute_guarded_action(contract, str(payload.get("confirmation", "")))
+            result = execute_registered_action(server_plan_id, str(payload.get("confirmation_text", "")))
             record_action_result(result)
             self._send_json(result)
             return
@@ -194,20 +219,19 @@ class SystemCoachHandler(SimpleHTTPRequestHandler):
             analysis = payload.get("analysis") if isinstance(payload.get("analysis"), dict) else {}
             scan = payload.get("scan") if isinstance(payload.get("scan"), dict) else {}
             plan = prepare_pop_cosmic_action(action_key, analysis, scan)
+            plan = register_action_plan(plan)
             record_request_plan(plan)
             self._send_json(plan)
             return
 
         if self.path == "/api/pop-cosmic/execute":
-            plan = payload.get("plan")
-            if not isinstance(plan, dict):
-                self.send_error(HTTPStatus.BAD_REQUEST, "plan must be an object")
+            server_plan_id = str(payload.get("plan_id", "")).strip()
+            if not server_plan_id:
+                result = _blocked_execution_request("execution requires a server-side plan_id")
+                record_action_result(result)
+                self._send_json(result, HTTPStatus.BAD_REQUEST)
                 return
-            contract = plan.get("action_contract")
-            if not isinstance(contract, dict):
-                self.send_error(HTTPStatus.BAD_REQUEST, "plan.action_contract must be an object")
-                return
-            result = execute_guarded_action(contract, str(payload.get("confirmation", "")))
+            result = execute_registered_action(server_plan_id, str(payload.get("confirmation_text", "")))
             record_action_result(result)
             self._send_json(result)
             return

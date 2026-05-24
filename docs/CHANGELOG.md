@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Completed roadmap Chunk 14 by adding a short-lived server-side action plan registry, action fingerprints, one-attempt plan consumption, API execution by `plan_id`, and tests that reject direct client-submitted executable contracts.
 - Added the Pop!_OS + COSMIC Agent MVP with profile detection, deep scans, source-aware research records, local model analysis, local lessons, guarded action plans, GTK/browser controls, verification scans, Request Desk routing, tests, and documentation.
 - Recorded the Chunk 0 baseline for the Pop!_OS/COSMIC agent work: governance preflight passed, 62 tests passed, and `compileall` passed before broader agent changes.
 - Enforced guarded-action confirmation phrases in the backend runner, added a GTK execution confirmation modal, and kept browser execution gated by the confirmation field.

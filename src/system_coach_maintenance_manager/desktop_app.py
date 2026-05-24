@@ -1051,6 +1051,9 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             "Can execute now:",
             "Yes" if executable else "No",
             "",
+            "Fingerprint:",
+            str(contract.get("fingerprint", "not available")),
+            "",
             "Commands:",
             *(f"- {command}" for command in commands),
         ]
@@ -1129,6 +1132,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
                 f"Requires privilege: {plan['requires_privilege']}",
                 f"Execution mode: {contract.get('execution_mode', 'user')}",
                 f"Execution enabled: {contract.get('execution_enabled', False)}",
+                f"Fingerprint: {contract.get('fingerprint', 'not available')}",
                 "",
                 "Gate reasons:",
                 *(f"- {reason}" for reason in gate_reasons),

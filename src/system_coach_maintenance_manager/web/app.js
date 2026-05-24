@@ -334,8 +334,10 @@ function planDetailsHtml(plan) {
     ? `
       <p><strong>Action runner contract</strong></p>
       <ul class="text-list compact-list">
+        <li>Server plan id: <code>${plan.server_plan_id || "not registered"}</code></li>
         <li>Contract: ${plan.action_contract.contract_version}</li>
         <li>Action id: ${plan.action_contract.id}</li>
+        <li>Fingerprint: <code>${plan.action_contract.fingerprint || plan.fingerprint || "not available"}</code></li>
         <li>Eligible for guarded execution: ${plan.action_contract.eligible_for_guarded_execution ? "yes" : "no"}</li>
         <li>Execution enabled: ${plan.action_contract.execution_enabled ? "yes" : "no"}</li>
         <li>Confirmation phrase: <code>${plan.action_contract.confirmation_phrase}</code></li>
@@ -729,12 +731,16 @@ async function executePopCosmicPlan() {
     setStatus("Build a Pop!_OS/COSMIC fix plan first.");
     return;
   }
+  if (!currentPopCosmicPlan.server_plan_id) {
+    setStatus("This Pop!_OS/COSMIC plan is not registered for server-side execution. Rebuild the fix plan.");
+    return;
+  }
   const response = await fetch("/api/pop-cosmic/execute", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      plan: currentPopCosmicPlan,
-      confirmation: popCosmicConfirmationInput.value.trim(),
+      plan_id: currentPopCosmicPlan.server_plan_id,
+      confirmation_text: popCosmicConfirmationInput.value.trim(),
     }),
   });
   currentPopCosmicResult = await response.json();

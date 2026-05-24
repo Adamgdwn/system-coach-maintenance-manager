@@ -161,9 +161,9 @@ Status: completed.
 - Keep package repair, firmware schedule/install, release upgrade, OS refresh, package purge, broad autoremove, broad config deletion, guessed service restarts, and display-layout mutation blocked in this agent slice.
 - Document the operating loop: scan, identify, assess, analyze, learn, improve, fix approved steps, verify, and save lessons.
 
-## Chunk 14: Server-Side Action Contract Integrity
+## Chunk 14: Server-Side Action Contract Integrity And Local API Safety
 
-Status: planned.
+Status: completed.
 
 - Stop treating client-submitted action contracts as authoritative for execution.
 - Store or rebuild executable contracts server-side from known plan/action identifiers.

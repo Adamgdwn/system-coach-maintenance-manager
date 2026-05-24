@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
+import json
 import os
 from pathlib import Path
 import re
@@ -257,7 +259,7 @@ def build_action_contract(plan: dict, project_control_path: Path | None = None) 
     assessment = _candidate_assessment(plan)
     gate = _execution_gate(controls, assessment)
     action_id = f"action-{_slug(plan.get('id', plan.get('title', 'plan')))}"
-    return {
+    contract = {
         "contract_version": CONTRACT_VERSION,
         "id": action_id,
         "plan_id": plan.get("id"),
@@ -287,6 +289,25 @@ def build_action_contract(plan: dict, project_control_path: Path | None = None) 
         "rollback": list(plan.get("rollback", [])),
         "created_at": _now(),
     }
+    contract["fingerprint"] = action_contract_fingerprint(contract)
+    return contract
+
+
+def action_contract_fingerprint(contract: dict) -> str:
+    """Return a stable short fingerprint for the executable action preview."""
+
+    material = {
+        "action_id": contract.get("id"),
+        "title": contract.get("plan_title"),
+        "risk": contract.get("risk"),
+        "execution_mode": contract.get("execution_mode"),
+        "command_preview": list(contract.get("command_preview", [])),
+        "confirmation_phrase": contract.get("confirmation_phrase"),
+        "rollback": list(contract.get("rollback", [])),
+        "verification_command": list(contract.get("post_check", [])),
+    }
+    digest = hashlib.sha256(json.dumps(material, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    return digest[:16]
 
 
 def _post_check_for_plan(plan: dict) -> list[str]:
