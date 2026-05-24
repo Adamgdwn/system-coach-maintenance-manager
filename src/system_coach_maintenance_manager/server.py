@@ -19,6 +19,7 @@ from .maintenance_actions import build_action_contract
 from .maintenance_history import load_history, record_maintenance_report, record_request_plan
 from .maintenance_history import record_action_result
 from .maintenance_reporting import generate_maintenance_report
+from .model_providers import model_provider_status, save_model_provider_config
 from .pop_cosmic_actions import make_verification_lesson, prepare_pop_cosmic_action, prepare_verification_plan
 from .pop_cosmic_brain import analyze_pop_cosmic_issue
 from .pop_cosmic_controls import load_pop_cosmic_controls
@@ -96,6 +97,9 @@ class SystemCoachHandler(SimpleHTTPRequestHandler):
         if self.path == "/api/capabilities":
             self._send_json(detect_system_capabilities())
             return
+        if self.path == "/api/model-provider":
+            self._send_json(model_provider_status())
+            return
         if self.path == "/api/pop-cosmic/profile":
             self._send_json(detect_pop_cosmic_environment())
             return
@@ -113,6 +117,7 @@ class SystemCoachHandler(SimpleHTTPRequestHandler):
             "/api/action-contract",
             "/api/action-run",
             "/api/ask",
+            "/api/model-provider",
             "/api/pop-cosmic/deep-scan",
             "/api/pop-cosmic/research",
             "/api/pop-cosmic/analyze",
@@ -189,6 +194,16 @@ class SystemCoachHandler(SimpleHTTPRequestHandler):
             result = execute_registered_action(server_plan_id, str(payload.get("confirmation_text", "")))
             record_action_result(result)
             self._send_json(result)
+            return
+
+        if self.path == "/api/model-provider":
+            if not isinstance(payload, dict):
+                self.send_error(HTTPStatus.BAD_REQUEST, "provider settings must be an object")
+                return
+            save_result = save_model_provider_config(payload)
+            status = model_provider_status()
+            status["save_warnings"] = save_result.get("warnings", [])
+            self._send_json(status)
             return
 
         if self.path == "/api/pop-cosmic/deep-scan":

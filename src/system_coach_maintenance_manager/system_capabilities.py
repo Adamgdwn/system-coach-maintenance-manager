@@ -15,6 +15,7 @@ import urllib.request
 
 from .ai_engine import OLLAMA_URL, choose_request_brain_models
 from .maintenance_history import history_dir
+from .model_providers import model_provider_status
 from .pop_cosmic_profile import is_pop_os, read_os_release
 
 
@@ -242,7 +243,7 @@ def _docs_for(os_name: str, distribution: dict, desktop: dict) -> list[str]:
     return docs
 
 
-def _surface_matrix(os_name: str, distribution: dict, desktop: dict, commands: dict, models: dict) -> list[dict]:
+def _surface_matrix(os_name: str, distribution: dict, desktop: dict, commands: dict, models: dict, provider_status: dict) -> list[dict]:
     is_linux = os_name.lower() == "linux"
     is_windows = os_name.lower().startswith("win")
     pop_or_cosmic = is_linux and (distribution.get("id") == "pop" or desktop.get("family") == "cosmic")
@@ -277,6 +278,12 @@ def _surface_matrix(os_name: str, distribution: dict, desktop: dict, commands: d
             "label": "Local Model Coach",
             "available": bool(ollama.get("api_available") and ollama.get("request_brain_models")),
             "reason": ollama.get("message", "No local model runtime detected."),
+        },
+        {
+            "id": "model-provider-setup",
+            "label": "Model Provider Setup",
+            "available": True,
+            "reason": f"Effective mode: {provider_status.get('effective_mode', 'deterministic')}. {provider_status.get('privacy', '')}",
         },
         {
             "id": "elevated-runner",
@@ -324,6 +331,7 @@ def detect_system_capabilities() -> dict:
     commands = _command_inventory(command_names)
     desktop = _desktop_profile(os_name, commands)
     models = _model_runtimes()
+    provider_status = model_provider_status()
     return {
         "generated_at": _now(),
         "onboarding_mode": "unknown-machine-first-run",
@@ -344,7 +352,8 @@ def detect_system_capabilities() -> dict:
         "hardware": _hardware_profile(os_name, commands),
         "display_stack": _display_stack(desktop, commands),
         "model_runtimes": models,
-        "surfaces": _surface_matrix(os_name, distribution, desktop, commands, models),
+        "model_provider_status": provider_status,
+        "surfaces": _surface_matrix(os_name, distribution, desktop, commands, models, provider_status),
         "scan_scopes": _scan_scope_matrix(os_name, distribution, desktop, commands),
         "recommended_docs": _docs_for(os_name, distribution, desktop),
         "local_storage": _local_storage_policy(),

@@ -196,6 +196,41 @@
 
         <section class="panel">
           <div class="panel-header">
+            <h2>Model Provider Setup</h2>
+            <p>Choose local models, bring-your-own-key cloud readiness, or no-model deterministic fallback.</p>
+          </div>
+          <div class="scan-controls">
+            <div id="modelProviderSummary" class="stack-list"></div>
+            <label class="input-label" for="modelProviderModeInput">Active mode</label>
+            <select id="modelProviderModeInput">
+              <option value="local">local model mode</option>
+              <option value="cloud">bring-your-own-key cloud mode</option>
+              <option value="deterministic">no-model deterministic fallback</option>
+            </select>
+            <label class="input-label" for="localModelBaseUrlInput">Local Ollama URL</label>
+            <input id="localModelBaseUrlInput" placeholder="http://127.0.0.1:11434" />
+            <label class="input-label" for="cloudProviderInput">Cloud provider label</label>
+            <input id="cloudProviderInput" placeholder="openai-compatible" />
+            <label class="input-label" for="cloudBaseUrlInput">Cloud API base URL</label>
+            <input id="cloudBaseUrlInput" placeholder="https://api.openai.com/v1" />
+            <label class="input-label" for="cloudModelInput">Cloud model</label>
+            <input id="cloudModelInput" placeholder="provider model name" />
+            <label class="input-label" for="cloudApiKeyEnvInput">API key environment variable</label>
+            <input id="cloudApiKeyEnvInput" placeholder="OPENAI_API_KEY" />
+            <label class="chip-option">
+              <input id="cloudEnabledInput" type="checkbox" />
+              <span>Enable BYO-key cloud mode when the environment variable is present</span>
+            </label>
+            <div class="scan-actions">
+              <button id="saveModelProviderButton">Save Provider Settings</button>
+              <button id="refreshModelProviderButton" class="secondary-button">Refresh Provider Health</button>
+              <span class="subtle">Raw API keys are not accepted or stored. Set the named environment variable outside the app.</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
             <h2>Maintenance History</h2>
             <p>Local diagnostic snapshots and request-plan records for troubleshooting handoff.</p>
           </div>

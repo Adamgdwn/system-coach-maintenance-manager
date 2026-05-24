@@ -78,6 +78,7 @@ python3 -m compileall src tests
 - A native GTK desktop shell is the default user interface.
 - Browser fallback mode is the cross-platform interface for Windows and Linux distributions without GTK.
 - A portable capability profile assumes an unknown first-run machine, detects operating system, desktop, package managers, model runtimes, privilege helpers, and available maintenance commands, then decides which agent surfaces and docs fit that machine.
+- Model Provider Setup defaults to local Ollama models, supports bring-your-own-key cloud readiness through environment variables, and keeps no-model deterministic fallback available.
 - Probe agents run local commands such as `python3 --version`, `git --version`, and `docker compose version`.
 - Users can opt into filesystem mapping for selected roots such as home directories, project folders, or `/etc`.
 - Read-only maintenance diagnostics inspect system health signals such as disk pressure, memory, CPU load, failed services, recent critical logs, network basics, and package-manager health across Linux and Windows where platform tools are available.
@@ -87,6 +88,7 @@ python3 -m compileall src tests
 - The Approval Queue makes prepared plans scannable before execution.
 - Approved-action contracts are attached to prepared plans so command previews, confirmation phrases, timeouts, output capture policy, post-checks, and rollback notes are visible.
 - Guarded action execution runs exact catalogued commands only after user approval. Elevated plans can request administrator/root approval through Linux `pkexec`/Polkit or Windows UAC.
+- Model providers can help classify, explain, and reason about evidence, but deterministic planners and guarded action contracts still choose executable commands.
 - Plain-language COSMIC display layout requests such as rotating the right monitor resolve against local display evidence and can produce executable `cosmic-randr` plans with rollback.
 - Local maintenance history records diagnostic snapshots, request-plan previews, action results, and learning notes under `history/maintenance-history.jsonl` by default.
 - History includes a “changed since last diagnostic run” summary when at least two diagnostic snapshots are available.
@@ -113,6 +115,7 @@ python3 -m compileall src tests
 - `docs/runbook.md`
 - `docs/maintenance-manager-plan.md`
 - `docs/system-capability-profile.md`
+- `docs/model-provider-setup.md`
 - `docs/pop-cosmic-agent.md`
 - `docs/action-runner-contract.md`
 - `docs/setup-linux.md`

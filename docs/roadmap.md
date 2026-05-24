@@ -217,7 +217,7 @@ Status: completed.
 
 ## Chunk 19: Model Provider And Bring-Your-Own-Key Setup
 
-Status: planned.
+Status: completed.
 
 - Default to local models through Ollama or another explicitly configured local runtime when available.
 - Do not ship bundled API keys, shared tokens, or owner-funded cloud credentials.

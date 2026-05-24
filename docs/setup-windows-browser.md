@@ -32,11 +32,24 @@ The server binds to `127.0.0.1` by default and prints the local URL.
 Install Ollama for Windows, then pull the preferred local model:
 
 ```powershell
+ollama pull qwen3:8b
 ollama pull gemma4:latest
 ollama list
 ```
 
 The app will fall back to another installed local model if the preferred tag is unavailable.
+
+## Optional Bring-Your-Own-Key Cloud Setup
+
+Set your API key in PowerShell before launching browser mode. The app stores only the environment variable name, not the key value:
+
+```powershell
+$env:OPENAI_API_KEY = "your-key-here"
+$env:PYTHONPATH = "src"
+python -m system_coach_maintenance_manager --browser
+```
+
+Open Model Provider Setup, choose bring-your-own-key cloud mode, and use `OPENAI_API_KEY` as the key environment variable. Executable commands are still selected by deterministic guarded planners, not by the cloud model.
 
 ## Local History
 

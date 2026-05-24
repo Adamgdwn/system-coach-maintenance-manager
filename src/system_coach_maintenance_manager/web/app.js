@@ -35,6 +35,16 @@ const popCosmicActionLog = document.querySelector("#popCosmicActionLog");
 const requestInput = document.querySelector("#requestInput");
 const prepareRequestButton = document.querySelector("#prepareRequestButton");
 const requestPlan = document.querySelector("#requestPlan");
+const modelProviderSummary = document.querySelector("#modelProviderSummary");
+const modelProviderModeInput = document.querySelector("#modelProviderModeInput");
+const localModelBaseUrlInput = document.querySelector("#localModelBaseUrlInput");
+const cloudProviderInput = document.querySelector("#cloudProviderInput");
+const cloudBaseUrlInput = document.querySelector("#cloudBaseUrlInput");
+const cloudModelInput = document.querySelector("#cloudModelInput");
+const cloudApiKeyEnvInput = document.querySelector("#cloudApiKeyEnvInput");
+const cloudEnabledInput = document.querySelector("#cloudEnabledInput");
+const saveModelProviderButton = document.querySelector("#saveModelProviderButton");
+const refreshModelProviderButton = document.querySelector("#refreshModelProviderButton");
 const refreshHistoryButton = document.querySelector("#refreshHistoryButton");
 const historyPath = document.querySelector("#historyPath");
 const historyChanges = document.querySelector("#historyChanges");
@@ -54,6 +64,7 @@ let currentPopCosmicResearch = null;
 let currentPopCosmicAnalysis = null;
 let currentPopCosmicPlan = null;
 let currentPopCosmicResult = null;
+let currentModelProvider = null;
 
 function setStatus(text) {
   statusText.textContent = text;
@@ -151,6 +162,90 @@ function renderCapabilities(report) {
       <ul class="text-list compact-list">${docs || "<li>No specific docs selected.</li>"}</ul>
     </article>
   `;
+}
+
+function renderModelProvider(status) {
+  currentModelProvider = status;
+  const config = status.config || {};
+  const local = config.local || {};
+  const cloud = config.cloud || {};
+  modelProviderModeInput.value = status.active_mode || config.active_mode || "local";
+  localModelBaseUrlInput.value = local.base_url || "http://127.0.0.1:11434";
+  cloudProviderInput.value = cloud.provider || "openai-compatible";
+  cloudBaseUrlInput.value = cloud.base_url || "https://api.openai.com/v1";
+  cloudModelInput.value = cloud.model || "";
+  cloudApiKeyEnvInput.value = cloud.api_key_env_var || "OPENAI_API_KEY";
+  cloudEnabledInput.checked = Boolean(cloud.enabled);
+  const modes = (status.modes || [])
+    .map(
+      (mode) => `
+        <li>
+          <strong>${escapeHtml(mode.label)}</strong>: ${mode.available ? "available" : "not ready"}
+          <br />${escapeHtml(mode.message || "")}
+        </li>
+      `
+    )
+    .join("");
+  const warnings = (status.save_warnings || []).map((warning) => `<li>${escapeHtml(warning)}</li>`).join("");
+  modelProviderSummary.innerHTML = `
+    <article class="stack-card">
+      <div class="stack-topline">
+        <h3>Effective mode: ${escapeHtml(status.effective_mode || "deterministic")}</h3>
+        <span class="pill">${escapeHtml(status.active_mode || "local")}</span>
+      </div>
+      <p>${escapeHtml(status.privacy || "")}</p>
+      <p>${escapeHtml(status.command_policy || "")}</p>
+      <p>Config path: <code>${escapeHtml(config.config_path || "")}</code></p>
+      <p>Cloud key present: ${cloud.api_key_present ? "yes" : "no"} via <code>${escapeHtml(cloud.api_key_env_var || "OPENAI_API_KEY")}</code></p>
+      ${warnings ? `<p><strong>Save warnings</strong></p><ul class="text-list compact-list">${warnings}</ul>` : ""}
+      <p><strong>Modes</strong></p>
+      <ul class="text-list compact-list">${modes || "<li>No provider status returned.</li>"}</ul>
+    </article>
+  `;
+}
+
+async function loadModelProvider() {
+  const response = await fetch("/api/model-provider", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Model provider request failed with status ${response.status}`);
+  }
+  renderModelProvider(await response.json());
+}
+
+async function saveModelProvider() {
+  setStatus("Saving model provider settings...");
+  saveModelProviderButton.disabled = true;
+  try {
+    const response = await fetch("/api/model-provider", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        active_mode: modelProviderModeInput.value,
+        local: {
+          provider: "ollama",
+          runtime: "ollama",
+          base_url: localModelBaseUrlInput.value.trim() || "http://127.0.0.1:11434",
+        },
+        cloud: {
+          enabled: cloudEnabledInput.checked,
+          provider: cloudProviderInput.value.trim() || "openai-compatible",
+          base_url: cloudBaseUrlInput.value.trim() || "https://api.openai.com/v1",
+          model: cloudModelInput.value.trim(),
+          api_key_env_var: cloudApiKeyEnvInput.value.trim() || "OPENAI_API_KEY",
+        },
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`Model provider save failed with status ${response.status}`);
+    }
+    renderModelProvider(await response.json());
+    setStatus("Model provider settings saved locally.");
+  } catch (error) {
+    console.error(error);
+    setStatus(`Model provider save failed: ${error.message}`);
+  } finally {
+    saveModelProviderButton.disabled = false;
+  }
 }
 
 function renderComponents(report) {
@@ -999,6 +1094,15 @@ refreshHistoryButton.addEventListener("click", () => {
     });
 });
 askCoachButton.addEventListener("click", askCoach);
+saveModelProviderButton.addEventListener("click", saveModelProvider);
+refreshModelProviderButton.addEventListener("click", () => {
+  loadModelProvider()
+    .then(() => setStatus("Model provider health refreshed."))
+    .catch((error) => {
+      console.error(error);
+      setStatus(`Model provider refresh failed: ${error.message}`);
+    });
+});
 loadScanOptions().catch((error) => {
   console.error(error);
   setStatus(`Could not load scan options: ${error.message}`);
@@ -1008,4 +1112,8 @@ runMaintenance();
 loadHistory().catch((error) => {
   console.error(error);
   setStatus(`Could not load history: ${error.message}`);
+});
+loadModelProvider().catch((error) => {
+  console.error(error);
+  setStatus(`Could not load model provider status: ${error.message}`);
 });

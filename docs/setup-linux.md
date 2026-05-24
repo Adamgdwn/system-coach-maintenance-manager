@@ -13,8 +13,18 @@ Optional AI coaching:
 
 ```bash
 curl -fsSL https://ollama.com/install.sh | sh
+ollama pull qwen3:8b
 ollama pull gemma4:latest
 ```
+
+Optional bring-your-own-key cloud setup stores only an environment-variable name in the app config. Put the key in your shell environment instead:
+
+```bash
+export OPENAI_API_KEY="your-key-here"
+PYTHONPATH=src python3 -m system_coach_maintenance_manager --browser
+```
+
+Then open Model Provider Setup and select bring-your-own-key cloud mode. Command execution remains deterministic and approval-gated.
 
 Run from the repository:
 

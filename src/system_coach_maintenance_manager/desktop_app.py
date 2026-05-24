@@ -21,6 +21,7 @@ from .maintenance_actions import execute_guarded_action
 from .maintenance_history import format_history, load_history, record_learning_note, record_maintenance_report, record_request_plan
 from .maintenance_history import record_action_result
 from .maintenance_reporting import generate_maintenance_report
+from .model_providers import model_provider_status
 from .pop_cosmic_actions import make_verification_lesson, prepare_pop_cosmic_action, prepare_verification_plan
 from .pop_cosmic_brain import analyze_pop_cosmic_issue
 from .pop_cosmic_controls import load_pop_cosmic_controls
@@ -128,6 +129,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             ("Request Desk", 5),
             ("Approval Queue", 6),
             ("Ask The Coach", 8),
+            ("Model Providers", 9),
         ]:
             button = Gtk.Button(label=label)
             button.connect("clicked", self.on_nav_clicked, page_index)
@@ -212,6 +214,11 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self.notebook.append_page(self.coach_page, Gtk.Label(label="Ask The Coach"))
         self._build_coach_page()
 
+        self.model_provider_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        self.model_provider_page.set_border_width(6)
+        self.notebook.append_page(self.model_provider_page, Gtk.Label(label="Model Providers"))
+        self._build_model_provider_page()
+
         self.command_view = self._make_text_view()
         self.notebook.append_page(self._frame("Command Log", self.command_view), Gtk.Label(label="Command Log"))
 
@@ -219,6 +226,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self.connect("size-allocate", self._on_size_allocate)
         self.show_all()
         self._refresh_engine_status()
+        self._refresh_model_provider_status()
         self.on_run_review(None)
         self.on_run_maintenance(None)
         self.on_refresh_history(None)
@@ -594,6 +602,26 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self.coach_view = self._make_text_view()
         self.coach_page.pack_start(self._frame("Coach Conversation", self.coach_view), True, True, 0)
 
+    def _build_model_provider_page(self) -> None:
+        intro = Gtk.Label(
+            label=(
+                "Model provider setup separates local Ollama mode, bring-your-own-key cloud readiness, "
+                "and no-model deterministic fallback. Raw API keys are not stored by this app."
+            )
+        )
+        intro.set_xalign(0)
+        intro.set_line_wrap(True)
+        self.model_provider_page.pack_start(intro, False, False, 0)
+
+        actions = self._make_wrapping_flow()
+        self.model_provider_page.pack_start(actions, False, False, 0)
+        self.refresh_provider_button = Gtk.Button(label="Refresh Provider Health")
+        self.refresh_provider_button.connect("clicked", self.on_refresh_provider_clicked)
+        actions.add(self.refresh_provider_button)
+
+        self.model_provider_view = self._make_text_view()
+        self.model_provider_page.pack_start(self._frame("Provider Modes And Storage", self.model_provider_view), True, True, 0)
+
     def _set_text(self, view: Gtk.TextView, text: str) -> None:
         buffer_ = view.get_buffer()
         buffer_.set_text(text)
@@ -609,6 +637,33 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
     def _refresh_engine_status(self) -> None:
         self.engine_status = get_engine_status()
         self.engine_label.set_text(f"Local AI engine: {self.engine_status['message']}")
+
+    def _refresh_model_provider_status(self) -> None:
+        status = model_provider_status()
+        config = status.get("config", {})
+        cloud = config.get("cloud", {})
+        lines = [
+            f"Active mode: {status.get('active_mode')}",
+            f"Effective mode: {status.get('effective_mode')}",
+            f"Config path: {config.get('config_path')}",
+            status.get("privacy", ""),
+            status.get("command_policy", ""),
+            "",
+            "Cloud key:",
+            f"- Environment variable: {cloud.get('api_key_env_var')}",
+            f"- Present: {'yes' if cloud.get('api_key_present') else 'no'}",
+            f"- Storage: {cloud.get('api_key_storage')}",
+            "",
+            "Modes:",
+        ]
+        for mode in status.get("modes", []):
+            state = "available" if mode.get("available") else "not ready"
+            lines.append(f"- {mode.get('label')}: {state}. {mode.get('message', '')}")
+        self._set_text(self.model_provider_view, "\n".join(lines))
+
+    def on_refresh_provider_clicked(self, _button: Gtk.Button | None) -> None:
+        self._refresh_model_provider_status()
+        self._set_status("Model provider health refreshed.")
 
     def _on_size_allocate(self, _widget: Gtk.Widget, allocation: Gdk.Rectangle) -> None:
         if allocation.width < self.NARROW_LAYOUT_WIDTH:

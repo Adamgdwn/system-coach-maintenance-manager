@@ -8,6 +8,7 @@ from typing import Any
 import urllib.error
 import urllib.request
 
+from .model_providers import configured_ollama_url
 from .troubleshooting_model import troubleshooting_prompt_block
 
 
@@ -49,7 +50,7 @@ REQUEST_FAMILIES = {
 
 def _post_json(path: str, payload: dict[str, Any], timeout: int = DEFAULT_TIMEOUT) -> dict[str, Any]:
     request = urllib.request.Request(
-        f"{OLLAMA_URL}{path}",
+        f"{configured_ollama_url()}{path}",
         data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json"},
         method="POST",
@@ -59,11 +60,12 @@ def _post_json(path: str, payload: dict[str, Any], timeout: int = DEFAULT_TIMEOU
 
 
 def _get_json(path: str, timeout: int = 5) -> dict[str, Any]:
-    with urllib.request.urlopen(f"{OLLAMA_URL}{path}", timeout=timeout) as response:
+    with urllib.request.urlopen(f"{configured_ollama_url()}{path}", timeout=timeout) as response:
         return json.load(response)
 
 
 def get_engine_status() -> dict[str, Any]:
+    base_url = configured_ollama_url()
     try:
         data = _get_json("/api/tags")
     except urllib.error.URLError as exc:
@@ -72,7 +74,7 @@ def get_engine_status() -> dict[str, Any]:
             "provider": "ollama",
             "models": [],
             "selected_model": None,
-            "message": f"Ollama is not reachable on {OLLAMA_URL}: {exc.reason}",
+            "message": f"Ollama is not reachable on {base_url}: {exc.reason}",
         }
 
     models = [item["name"] for item in data.get("models", [])]
