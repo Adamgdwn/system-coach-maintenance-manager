@@ -47,7 +47,7 @@ window {
 }
 
 .app-root {
-  padding: 28px;
+  padding: 20px;
   background-image:
     radial-gradient(circle at top left, rgba(12, 122, 97, 0.14), transparent 28%),
     radial-gradient(circle at top right, rgba(191, 95, 47, 0.16), transparent 24%),
@@ -55,8 +55,8 @@ window {
 }
 
 .hero-panel {
-  padding: 28px;
-  border-radius: 26px;
+  padding: 18px;
+  border-radius: 22px;
   border: 1px solid rgba(84, 62, 34, 0.16);
   background-image: linear-gradient(135deg, rgba(255, 250, 243, 0.96), rgba(239, 226, 204, 0.92));
   box-shadow: 0 20px 45px rgba(86, 67, 39, 0.12);
@@ -71,7 +71,7 @@ window {
 
 .hero-title {
   color: #2b2115;
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 800;
 }
 
@@ -81,7 +81,7 @@ window {
 }
 
 .status-strip {
-  padding: 10px 14px;
+  padding: 8px 12px;
   border-radius: 14px;
   border: 1px solid rgba(12, 122, 97, 0.15);
   background-color: rgba(12, 122, 97, 0.07);
@@ -89,7 +89,7 @@ window {
 }
 
 .engine-strip {
-  padding: 10px 14px;
+  padding: 8px 12px;
   border-radius: 14px;
   border: 1px solid rgba(191, 95, 47, 0.16);
   background-color: rgba(191, 95, 47, 0.07);
@@ -255,13 +255,13 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         outer_scroll.set_vexpand(True)
         self.add(outer_scroll)
 
-        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         self._add_class(root, "app-root")
         root.set_hexpand(True)
         root.set_vexpand(True)
         outer_scroll.add(root)
 
-        header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self._add_class(header, "hero-panel")
         root.pack_start(header, False, False, 0)
 
@@ -311,15 +311,20 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
 
         self.status_label = Gtk.Label(label="Ready. Run a review to learn the environment.")
         self._add_class(self.status_label, "status-strip")
+        self.status_label.set_hexpand(True)
         self.status_label.set_xalign(0)
         self.status_label.set_line_wrap(True)
-        root.pack_start(self.status_label, False, False, 0)
 
         self.engine_label = Gtk.Label(label="Checking local AI engine...")
         self._add_class(self.engine_label, "engine-strip")
+        self.engine_label.set_hexpand(True)
         self.engine_label.set_xalign(0)
         self.engine_label.set_line_wrap(True)
-        root.pack_start(self.engine_label, False, False, 0)
+
+        status_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        status_row.pack_start(self.status_label, True, True, 0)
+        status_row.pack_start(self.engine_label, True, True, 0)
+        root.pack_start(status_row, False, False, 0)
 
         self.content_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
         self.content_paned.set_wide_handle(True)

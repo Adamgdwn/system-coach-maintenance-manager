@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Tightened the native GTK header by reducing the hero banner height and combining the status and local-AI state strips into one row.
 - Removed the duplicate native GTK top navigation row so the notebook tabs are the single page navigation path and the main panels have more vertical room.
 - Refreshed the native GTK desktop shell with the warmer public-alpha visual treatment used in the browser screenshots: cream surfaces, green and copper action buttons, styled panels, softer status strips, and themed text areas.
 - Added a GitHub public-alpha handoff and reusable repository template documenting the current repo metadata, release link, branch protection posture, public caveats, validation commands, and GitHub CLI commands used for the alpha launch.
