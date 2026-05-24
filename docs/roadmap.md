@@ -196,7 +196,7 @@ Status: completed.
 
 ## Chunk 17: Pop/COSMIC Agent Robustness Polish
 
-Status: planned.
+Status: completed.
 
 - Add server/API tests for Pop/COSMIC profile, deep scan, research, analyze, plan, execute, and verify endpoints.
 - Improve verification lessons so they record the action result, observed post-scan evidence, and whether improvement was user-confirmed.

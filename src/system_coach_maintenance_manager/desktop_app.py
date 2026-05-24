@@ -21,10 +21,11 @@ from .maintenance_actions import execute_guarded_action
 from .maintenance_history import format_history, load_history, record_learning_note, record_maintenance_report, record_request_plan
 from .maintenance_history import record_action_result
 from .maintenance_reporting import generate_maintenance_report
-from .pop_cosmic_actions import prepare_pop_cosmic_action, prepare_verification_plan
+from .pop_cosmic_actions import make_verification_lesson, prepare_pop_cosmic_action, prepare_verification_plan
 from .pop_cosmic_brain import analyze_pop_cosmic_issue
+from .pop_cosmic_controls import load_pop_cosmic_controls
 from .pop_cosmic_deep_scan import run_pop_cosmic_deep_scan
-from .pop_cosmic_knowledge import load_relevant_lessons, load_relevant_research, make_lesson, save_lesson, save_research_records
+from .pop_cosmic_knowledge import load_relevant_lessons, load_relevant_research, save_lesson, save_research_records
 from .pop_cosmic_research import research_pop_cosmic_issue
 from .reporting import generate_report
 from .request_evidence import collect_request_evidence
@@ -983,6 +984,8 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         commands = contract.get("command_preview", plan.get("commands", []))
         executable = contract.get("execution_enabled", False)
         execution_mode = contract.get("execution_mode")
+        elevation_prompt = contract.get("elevation_prompt") or {}
+        blocked_escalation = plan.get("blocked_escalation") or {}
         changes_system = plan.get("family") in {
             "cursor-size",
             "display-brightness",
@@ -1061,6 +1064,15 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             lines.extend(["", "Elevation:", elevation_prompt.get("message", "This action needs administrator approval.")])
         if gate_reasons:
             lines.extend(["", "Why blocked:", *(f"- {reason}" for reason in gate_reasons)])
+        if blocked_escalation:
+            lines.extend(
+                [
+                    "",
+                    "Blocked escalation path:",
+                    blocked_escalation.get("reason", "This action needs a narrower approved contract before execution."),
+                    *(f"- {step}" for step in blocked_escalation.get("next_steps", [])),
+                ]
+            )
         lines.extend(
             [
                 "",
@@ -1361,6 +1373,13 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             "Findings:",
             *[f"- {finding.get('severity')}: {finding.get('summary')}" for finding in scan.get("findings", [])],
         ]
+        missing_cosmic_commands = [
+            command
+            for command, info in (profile.get("cosmic", {}).get("commands") or {}).items()
+            if command in {"cosmic-randr", "cosmic-settings", "cosmic-store"} and not info.get("present")
+        ]
+        if missing_cosmic_commands:
+            lines.extend(["", "Missing COSMIC commands:", *(f"- {command}" for command in missing_cosmic_commands)])
         self._set_text(self.pop_cosmic_profile_view, "\n".join(lines))
         self._set_status("Pop!_OS/COSMIC scan complete.")
         return False
@@ -1377,7 +1396,19 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
     def _pop_cosmic_research_worker(self, symptom: str) -> None:
         try:
             profile = (self.pop_cosmic_scan or {}).get("profile", {})
-            research = research_pop_cosmic_issue(symptom, profile, enabled=False)
+            controls = load_pop_cosmic_controls()
+            governance = {
+                "source": controls.get("source"),
+                "web_research_enabled": bool(controls.get("web_research_enabled")),
+                "requested_live_web": False,
+                "effective_live_web": False,
+                "allowed_domains": controls.get("allowed_domains", []),
+                "reason": (
+                    "Desktop Pop/COSMIC research did not opt in to live web research. "
+                    "Returning local/manual records and official source metadata only."
+                ),
+            }
+            research = research_pop_cosmic_issue(symptom, profile, enabled=False, governance=governance)
             save_research_records(research.get("records", []))
             GLib.idle_add(self._apply_pop_cosmic_research, research)
         except Exception as exc:
@@ -1388,7 +1419,9 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         records = research.get("records", [])
         lines = [
             f"Research enabled: {research.get('enabled')}",
+            f"Research mode: {research.get('research_mode')}",
             f"Safe query: {research.get('query')}",
+            f"Governance: {research.get('governance', {}).get('reason', '')}",
             research.get("privacy", ""),
             "",
             "Sources:",
@@ -1428,6 +1461,8 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             "",
             "Hypotheses:",
         ]
+        if analysis.get("model_error"):
+            lines.extend(["", f"Local model note: {analysis.get('model_error')}"])
         for hypothesis in analysis.get("hypotheses", []):
             lines.append(f"- {hypothesis.get('id', '?')}: {hypothesis.get('summary')}")
         lines.extend(["", "Ranked actions:"])
@@ -1470,13 +1505,11 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
     def _pop_cosmic_verify_worker(self) -> None:
         try:
             post_scan = prepare_verification_plan(self.pop_cosmic_result or {}, self.pop_cosmic_scan or {})
-            lesson = make_lesson(
+            lesson = make_verification_lesson(
                 symptom=self._pop_cosmic_concern(),
-                profile=post_scan.get("profile", {}),
-                evidence_summary="; ".join(item.get("summary", "") for item in post_scan.get("findings", [])[:4]),
-                action_taken=", ".join((self.pop_cosmic_result or {}).get("commands", [])),
-                result="improved" if (self.pop_cosmic_result or {}).get("status") == "completed" else "unknown",
-                verification="Post-scan collected after Pop/COSMIC action.",
+                action_result=self.pop_cosmic_result or {},
+                post_scan=post_scan,
+                user_confirmed=False,
             )
             save_lesson(lesson)
             GLib.idle_add(self._apply_pop_cosmic_verification, post_scan, lesson)

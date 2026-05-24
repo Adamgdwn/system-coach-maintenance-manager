@@ -19,11 +19,11 @@ from .maintenance_actions import build_action_contract
 from .maintenance_history import load_history, record_maintenance_report, record_request_plan
 from .maintenance_history import record_action_result
 from .maintenance_reporting import generate_maintenance_report
-from .pop_cosmic_actions import prepare_pop_cosmic_action, prepare_verification_plan
+from .pop_cosmic_actions import make_verification_lesson, prepare_pop_cosmic_action, prepare_verification_plan
 from .pop_cosmic_brain import analyze_pop_cosmic_issue
 from .pop_cosmic_controls import load_pop_cosmic_controls
 from .pop_cosmic_deep_scan import run_pop_cosmic_deep_scan
-from .pop_cosmic_knowledge import load_relevant_lessons, load_relevant_research, save_lesson, save_research_records, make_lesson
+from .pop_cosmic_knowledge import load_relevant_lessons, load_relevant_research, save_lesson, save_research_records
 from .pop_cosmic_profile import detect_pop_cosmic_environment
 from .pop_cosmic_research import research_pop_cosmic_issue
 from .reporting import generate_report
@@ -264,14 +264,12 @@ class SystemCoachHandler(SimpleHTTPRequestHandler):
             result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
             original_scan = payload.get("scan") if isinstance(payload.get("scan"), dict) else {}
             post_scan = prepare_verification_plan(result, original_scan)
-            profile = post_scan.get("profile", {})
-            lesson = make_lesson(
+            lesson = make_verification_lesson(
                 symptom=str(payload.get("symptom", "")),
-                profile=profile,
-                evidence_summary="; ".join(item.get("summary", "") for item in post_scan.get("findings", [])[:4]),
-                action_taken=", ".join(result.get("commands", [])),
-                result="improved" if result.get("status") == "completed" else "unknown",
-                verification="Post-scan collected after Pop/COSMIC action.",
+                action_result=result,
+                post_scan=post_scan,
+                user_confirmed=bool(payload.get("user_confirmed", False)),
+                user_note=str(payload.get("user_note", "")),
             )
             save_lesson(lesson)
             self._send_json({"post_scan": post_scan, "lesson": lesson})

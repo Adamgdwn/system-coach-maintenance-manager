@@ -346,6 +346,15 @@ function planDetailsHtml(plan) {
       </ul>
     `
     : "";
+  const blockedEscalation = plan.blocked_escalation
+    ? `
+      <p><strong>Blocked escalation path</strong></p>
+      <p>${escapeHtml(plan.blocked_escalation.reason || "This action needs a narrower approved contract before execution.")}</p>
+      <ul class="text-list compact-list">
+        ${(plan.blocked_escalation.next_steps || []).map((step) => `<li>${escapeHtml(step)}</li>`).join("")}
+      </ul>
+    `
+    : "";
   return `
     <p>${plan.summary || plan.expected_effect}</p>
     <p>Risk: ${plan.risk} · Requires privilege: ${plan.requires_privilege ? "yes" : "no"} · Reversible: ${plan.reversible ? "yes" : "no"} · Approval required: ${plan.approval_required ? "yes" : "no"} · Execution enabled: ${plan.execution_enabled ? "yes" : "no"}</p>
@@ -357,6 +366,7 @@ function planDetailsHtml(plan) {
     ${rollback}
     <p>${plan.approval_prompt}</p>
     ${contract}
+    ${blockedEscalation}
   `;
 }
 
@@ -403,10 +413,18 @@ function renderPopCosmicScan(scan) {
   const findings = (scan.findings || [])
     .map((finding) => `<li>${escapeHtml(finding.severity)}: ${escapeHtml(finding.summary)}</li>`)
     .join("");
+  const missingCosmicCommands = Object.entries(profile.cosmic?.commands || {})
+    .filter(([command, info]) => ["cosmic-randr", "cosmic-settings", "cosmic-store"].includes(command) && !info.present)
+    .map(([command]) => command);
   popCosmicSummary.innerHTML = `
     <article class="stack-card">
       <h3>${escapeHtml(profile.pretty_name || "Unknown Linux")}</h3>
       <p>Scope: ${escapeHtml(scan.scope)} · Applicable: ${escapeHtml(scan.applicable)} · COSMIC signal: ${escapeHtml(profile.has_cosmic_signal)}</p>
+      ${
+        missingCosmicCommands.length
+          ? `<p>Missing COSMIC commands: ${missingCosmicCommands.map((command) => `<code>${escapeHtml(command)}</code>`).join(", ")}</p>`
+          : ""
+      }
       <ul class="text-list compact-list">${findings || "<li>No findings returned.</li>"}</ul>
     </article>
   `;
@@ -423,6 +441,7 @@ function renderPopCosmicAnalysis(analysis) {
     <article class="stack-card">
       <h3>${escapeHtml(analysis.working_problem || "Pop/COSMIC analysis")}</h3>
       <p>Source: ${escapeHtml(analysis.source || "unknown")} ${escapeHtml(analysis.model || "")} · Surface: ${escapeHtml(analysis.likely_surface || "unknown")} · Confidence: ${escapeHtml(analysis.confidence ?? "unknown")}</p>
+      ${analysis.model_error ? `<p>Local model note: ${escapeHtml(analysis.model_error)}</p>` : ""}
       <p><strong>Hypotheses</strong></p>
       <ul class="text-list compact-list">${hypotheses || "<li>No hypotheses returned.</li>"}</ul>
       <p><strong>Ranked actions</strong></p>
@@ -669,69 +688,106 @@ async function researchPopCosmic() {
   if (!currentPopCosmicScan) {
     await runPopCosmicScan();
   }
+  if (!currentPopCosmicScan) {
+    setStatus("Pop!_OS/COSMIC research needs a completed scan first.");
+    return;
+  }
   setStatus("Preparing Pop!_OS/COSMIC research records...");
-  const response = await fetch("/api/pop-cosmic/research", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      symptom: popCosmicConcernInput.value.trim(),
-      profile: currentPopCosmicScan?.profile,
-      enabled: false,
-    }),
-  });
-  currentPopCosmicResearch = await response.json();
-  const records = (currentPopCosmicResearch.records || [])
-    .map((record) => `<li>[${escapeHtml(record.record_mode || record.trust_level)}] ${escapeHtml(record.title)}</li>`)
-    .join("");
-  popCosmicAnalysis.innerHTML = `
-    <article class="stack-card">
-      <h3>Research records</h3>
-      <p>Mode: ${escapeHtml(currentPopCosmicResearch.research_mode || "unknown")}</p>
-      <p>${escapeHtml(currentPopCosmicResearch.governance?.reason || "")}</p>
-      <p>${escapeHtml(currentPopCosmicResearch.privacy)}</p>
-      <ul class="text-list compact-list">${records}</ul>
-    </article>
-  `;
-  setStatus("Pop!_OS/COSMIC research records prepared.");
+  try {
+    const response = await fetch("/api/pop-cosmic/research", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        symptom: popCosmicConcernInput.value.trim(),
+        profile: currentPopCosmicScan?.profile,
+        enabled: false,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`Pop/COSMIC research failed with status ${response.status}`);
+    }
+    currentPopCosmicResearch = await response.json();
+    const records = (currentPopCosmicResearch.records || [])
+      .map((record) => `<li>[${escapeHtml(record.record_mode || record.trust_level)}] ${escapeHtml(record.title)}</li>`)
+      .join("");
+    popCosmicAnalysis.innerHTML = `
+      <article class="stack-card">
+        <h3>Research records</h3>
+        <p>Mode: ${escapeHtml(currentPopCosmicResearch.research_mode || "unknown")}</p>
+        <p>${escapeHtml(currentPopCosmicResearch.governance?.reason || "")}</p>
+        <p>${escapeHtml(currentPopCosmicResearch.privacy)}</p>
+        <ul class="text-list compact-list">${records || "<li>No research records returned.</li>"}</ul>
+      </article>
+    `;
+    setStatus("Pop!_OS/COSMIC research records prepared.");
+  } catch (error) {
+    console.error(error);
+    setStatus(`Pop!_OS/COSMIC research failed: ${error.message}`);
+  }
 }
 
 async function analyzePopCosmic() {
   if (!currentPopCosmicScan) {
     await runPopCosmicScan();
   }
+  if (!currentPopCosmicScan) {
+    setStatus("Pop!_OS/COSMIC analysis needs a completed scan first.");
+    return;
+  }
   setStatus("Asking local model ladder to analyze Pop!_OS/COSMIC evidence...");
-  const response = await fetch("/api/pop-cosmic/analyze", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      symptom: popCosmicConcernInput.value.trim(),
-      scan: currentPopCosmicScan,
-      research: currentPopCosmicResearch?.records || [],
-    }),
-  });
-  currentPopCosmicAnalysis = await response.json();
-  renderPopCosmicAnalysis(currentPopCosmicAnalysis);
-  setStatus("Pop!_OS/COSMIC analysis complete.");
+  try {
+    const response = await fetch("/api/pop-cosmic/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        symptom: popCosmicConcernInput.value.trim(),
+        scan: currentPopCosmicScan,
+        research: currentPopCosmicResearch?.records || [],
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`Pop/COSMIC analysis failed with status ${response.status}`);
+    }
+    currentPopCosmicAnalysis = await response.json();
+    renderPopCosmicAnalysis(currentPopCosmicAnalysis);
+    setStatus("Pop!_OS/COSMIC analysis complete.");
+  } catch (error) {
+    console.error(error);
+    setStatus(`Pop!_OS/COSMIC analysis failed: ${error.message}`);
+  }
 }
 
 async function buildPopCosmicPlan() {
   if (!currentPopCosmicAnalysis) {
     await analyzePopCosmic();
   }
+  if (!currentPopCosmicAnalysis) {
+    setStatus("Pop!_OS/COSMIC plan needs a completed analysis first.");
+    return;
+  }
   const action = (currentPopCosmicAnalysis.ranked_actions || [])[0] || { action_key: "deep-scan-standard" };
-  const response = await fetch("/api/pop-cosmic/plan", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      action_key: action.action_key,
-      analysis: currentPopCosmicAnalysis,
-      scan: currentPopCosmicScan,
-    }),
-  });
-  currentPopCosmicPlan = await response.json();
-  renderPopCosmicPlan(currentPopCosmicPlan);
-  renderApprovalQueue();
-  setStatus("Pop!_OS/COSMIC fix plan prepared.");
+  setStatus("Preparing Pop!_OS/COSMIC fix plan...");
+  try {
+    const response = await fetch("/api/pop-cosmic/plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action_key: action.action_key,
+        analysis: currentPopCosmicAnalysis,
+        scan: currentPopCosmicScan,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`Pop/COSMIC plan failed with status ${response.status}`);
+    }
+    currentPopCosmicPlan = await response.json();
+    renderPopCosmicPlan(currentPopCosmicPlan);
+    renderApprovalQueue();
+    setStatus("Pop!_OS/COSMIC fix plan prepared.");
+  } catch (error) {
+    console.error(error);
+    setStatus(`Pop!_OS/COSMIC plan failed: ${error.message}`);
+  }
 }
 
 async function executePopCosmicPlan() {
@@ -743,23 +799,31 @@ async function executePopCosmicPlan() {
     setStatus("This Pop!_OS/COSMIC plan is not registered for server-side execution. Rebuild the fix plan.");
     return;
   }
-  const response = await fetch("/api/pop-cosmic/execute", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      plan_id: currentPopCosmicPlan.server_plan_id,
-      confirmation_text: popCosmicConfirmationInput.value.trim(),
-    }),
-  });
-  currentPopCosmicResult = await response.json();
-  popCosmicActionLog.innerHTML += `
-    <div class="command-entry">
-      <code>${escapeHtml(currentPopCosmicResult.action_id || "action")}</code>
-      <span>${escapeHtml(currentPopCosmicResult.status)}</span>
-      <p>${escapeHtml(currentPopCosmicResult.output || currentPopCosmicResult.error || "No output.")}</p>
-    </div>
-  `;
-  setStatus(`Pop!_OS/COSMIC action ${currentPopCosmicResult.status}.`);
+  try {
+    const response = await fetch("/api/pop-cosmic/execute", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        plan_id: currentPopCosmicPlan.server_plan_id,
+        confirmation_text: popCosmicConfirmationInput.value.trim(),
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`Pop/COSMIC execution failed with status ${response.status}`);
+    }
+    currentPopCosmicResult = await response.json();
+    popCosmicActionLog.innerHTML += `
+      <div class="command-entry">
+        <code>${escapeHtml(currentPopCosmicResult.action_id || "action")}</code>
+        <span>${escapeHtml(currentPopCosmicResult.status)}</span>
+        <p>${escapeHtml(currentPopCosmicResult.output || currentPopCosmicResult.error || "No output.")}</p>
+      </div>
+    `;
+    setStatus(`Pop!_OS/COSMIC action ${currentPopCosmicResult.status}.`);
+  } catch (error) {
+    console.error(error);
+    setStatus(`Pop!_OS/COSMIC execution failed: ${error.message}`);
+  }
 }
 
 async function verifyPopCosmicPlan() {
@@ -767,19 +831,35 @@ async function verifyPopCosmicPlan() {
     setStatus("No Pop!_OS/COSMIC action result is available to verify.");
     return;
   }
-  const response = await fetch("/api/pop-cosmic/verify", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      symptom: popCosmicConcernInput.value.trim(),
-      result: currentPopCosmicResult,
-      scan: currentPopCosmicScan,
-    }),
-  });
-  const payload = await response.json();
-  currentPopCosmicScan = payload.post_scan;
-  renderPopCosmicScan(currentPopCosmicScan);
-  setStatus("Pop!_OS/COSMIC verification complete and lesson saved.");
+  try {
+    const response = await fetch("/api/pop-cosmic/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        symptom: popCosmicConcernInput.value.trim(),
+        result: currentPopCosmicResult,
+        scan: currentPopCosmicScan,
+        user_confirmed: false,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`Pop/COSMIC verification failed with status ${response.status}`);
+    }
+    const payload = await response.json();
+    currentPopCosmicScan = payload.post_scan;
+    renderPopCosmicScan(currentPopCosmicScan);
+    popCosmicActionLog.innerHTML += `
+      <div class="command-entry">
+        <code>verification</code>
+        <span>${escapeHtml(payload.lesson?.result || "unknown")}</span>
+        <p>${escapeHtml(payload.lesson?.verification || "Post-scan verification complete.")}</p>
+      </div>
+    `;
+    setStatus("Pop!_OS/COSMIC verification complete and lesson saved.");
+  } catch (error) {
+    console.error(error);
+    setStatus(`Pop!_OS/COSMIC verification failed: ${error.message}`);
+  }
 }
 
 async function askCoach() {

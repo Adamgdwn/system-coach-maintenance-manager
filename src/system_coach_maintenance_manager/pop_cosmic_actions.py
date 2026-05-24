@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from .maintenance_actions import attach_action_contract
 from .pop_cosmic_deep_scan import run_pop_cosmic_deep_scan
+from .pop_cosmic_knowledge import make_lesson
 
 
 LOW_RISK_ACTIONS = {
@@ -74,7 +75,7 @@ def _blocked_plan(action_key: str, analysis: dict) -> dict:
         (item.get("title") for item in analysis.get("ranked_actions", []) if item.get("action_key") == action_key),
         f"Blocked Pop/COSMIC action: {action_key}",
     )
-    return _base_plan(
+    plan = _base_plan(
         action_key=action_key,
         title=title,
         risk="high" if action_key in {"apt-repair-step", "firmware-review"} else "unknown",
@@ -89,6 +90,18 @@ def _blocked_plan(action_key: str, analysis: dict) -> dict:
             "Package repair, firmware install/scheduling, release upgrades, refresh, purge, and broad config deletion remain blocked."
         ),
     )
+    plan["blocked_escalation"] = {
+        "blocked": True,
+        "reason": "This Pop/COSMIC action is outside the current executable guarded catalog.",
+        "action_key": action_key,
+        "requires_new_contract": True,
+        "next_steps": [
+            "Collect or refresh local evidence before attempting a narrower fix.",
+            "Write an exact proposed command list with pre-checks, side effects, rollback, and verification.",
+            "Add a dedicated guarded catalog entry and tests before making this executable.",
+        ],
+    }
+    return plan
 
 
 def prepare_pop_cosmic_action(action_key: str, analysis: dict, scan: dict) -> dict:
@@ -184,6 +197,42 @@ def prepare_pop_cosmic_action(action_key: str, analysis: dict, scan: dict) -> di
 def prepare_verification_plan(action_result: dict, original_scan: dict) -> dict:
     scope = "updates" if "update" in " ".join(action_result.get("commands", [])).lower() else "standard"
     return run_pop_cosmic_deep_scan(scope)
+
+
+def summarize_post_scan_evidence(post_scan: dict, limit: int = 4) -> str:
+    findings = [item.get("summary", "") for item in post_scan.get("findings", [])[:limit] if item.get("summary")]
+    return "; ".join(findings) or "Post-scan completed with no summarized findings."
+
+
+def verification_result_label(action_result: dict, *, user_confirmed: bool = False) -> str:
+    status = action_result.get("status")
+    if status != "completed":
+        return "not_completed"
+    if user_confirmed:
+        return "user_confirmed_improved"
+    return "completed_unconfirmed"
+
+
+def make_verification_lesson(
+    *,
+    symptom: str,
+    action_result: dict,
+    post_scan: dict,
+    user_confirmed: bool = False,
+    user_note: str = "",
+) -> dict:
+    status = action_result.get("status", "unknown")
+    confirmation = "User confirmed improvement." if user_confirmed else "User has not confirmed improvement."
+    verification = f"Post-scan collected after Pop/COSMIC action. Action status: {status}. {confirmation}"
+    return make_lesson(
+        symptom=symptom,
+        profile=post_scan.get("profile", {}),
+        evidence_summary=summarize_post_scan_evidence(post_scan),
+        action_taken=", ".join(action_result.get("commands", [])),
+        result=verification_result_label(action_result, user_confirmed=user_confirmed),
+        verification=verification,
+        user_note=user_note,
+    )
 
 
 def prepare_rollback_plan(action_result: dict) -> dict:

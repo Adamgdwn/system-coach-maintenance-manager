@@ -287,6 +287,7 @@ def run_pop_cosmic_deep_scan(scope: str = "standard") -> dict:
 def summarize_scan_findings(groups: dict[str, Any]) -> list[dict]:
     findings = []
     profile = groups.get("profile", {})
+    cosmic_commands = profile.get("cosmic", {}).get("commands", {})
     if not profile.get("applicable"):
         findings.append(
             {
@@ -303,6 +304,20 @@ def summarize_scan_findings(groups: dict[str, Any]) -> list[dict]:
                 "summary": f"{profile.get('pretty_name')} detected with COSMIC signal={profile.get('has_cosmic_signal')}.",
             }
         )
+    if profile.get("applicable"):
+        missing_cosmic_commands = [
+            command
+            for command in ("cosmic-randr", "cosmic-settings", "cosmic-store")
+            if not cosmic_commands.get(command, {}).get("present")
+        ]
+        if missing_cosmic_commands:
+            findings.append(
+                {
+                    "id": "pop-cosmic-missing-support-commands",
+                    "severity": "warning",
+                    "summary": "Missing COSMIC support command(s): " + ", ".join(missing_cosmic_commands) + ".",
+                }
+            )
     user_services = groups.get("user_services", {})
     if user_services.get("failed_count"):
         findings.append(
@@ -327,6 +342,21 @@ def summarize_scan_findings(groups: dict[str, Any]) -> list[dict]:
                 "id": "pop-cosmic-updates-available",
                 "severity": "info",
                 "summary": f"{updates['upgradable_count']} package update(s) are visible from the current package index.",
+            }
+        )
+    timed_out = []
+    for group_name, group in groups.items():
+        if not isinstance(group, dict):
+            continue
+        for command in group.get("commands", []):
+            if command.get("exit_code") == 124:
+                timed_out.append(command.get("command", group_name))
+    if timed_out:
+        findings.append(
+            {
+                "id": "pop-cosmic-scan-timeout",
+                "severity": "warning",
+                "summary": "Timed out collecting bounded evidence from: " + ", ".join(timed_out[:4]) + ".",
             }
         )
     return findings

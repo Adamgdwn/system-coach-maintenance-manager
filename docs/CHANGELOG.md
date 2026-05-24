@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Completed roadmap Chunk 17 by adding full Pop/COSMIC server endpoint tests, clearer blocked-escalation output, user-confirmation-aware verification lessons, and browser/desktop error states for missing COSMIC commands, local model fallback, scan timeouts, and disabled web research.
 - Completed roadmap Chunk 16 by replacing broad GitHub research allowance with HTTPS-only, path-aware official System76 and Pop/COSMIC source rules plus tests for allowed and rejected URLs.
 - Completed roadmap Chunk 15 by enforcing Pop/COSMIC research governance server-side, preventing request payloads from enabling disabled live web research, labeling research modes, and surfacing governance reasons in API/browser output.
 - Completed roadmap Chunk 14 by adding a short-lived server-side action plan registry, action fingerprints, one-attempt plan consumption, API execution by `plan_id`, and tests that reject direct client-submitted executable contracts.

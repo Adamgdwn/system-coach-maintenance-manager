@@ -79,6 +79,8 @@ Blocked escalation paths:
 - Broad config deletion.
 - Guessed service restarts.
 
+Blocked recommendations are shown as human-readable escalation paths with next steps for collecting evidence and designing a new guarded contract. They are not presented as executable plans until the catalog and tests explicitly support them.
+
 ## Verification And Lessons
 
-After execution, the agent can run a verification scan and save a local lesson under the Pop/COSMIC lesson cache. Lessons are retrieval records, not model fine-tuning.
+After execution, the agent can run a verification scan and save a local lesson under the Pop/COSMIC lesson cache. Lessons record the action result, action commands, post-scan evidence, and whether the user confirmed improvement. A completed command is stored as `completed_unconfirmed` until the user explicitly confirms the symptom improved. Lessons are retrieval records, not model fine-tuning.

@@ -6,6 +6,7 @@ from system_coach_maintenance_manager.pop_cosmic_deep_scan import (
     redact_tokens,
     redact_user_paths,
     run_pop_cosmic_deep_scan,
+    summarize_scan_findings,
 )
 
 
@@ -49,6 +50,30 @@ class PopCosmicDeepScanTests(unittest.TestCase):
         self.assertIn("apt-get check", command_blob)
         self.assertNotIn("full-upgrade", command_blob)
         self.assertNotIn(" install ", command_blob)
+
+    def test_findings_report_missing_cosmic_commands_and_timeouts(self):
+        findings = summarize_scan_findings(
+            {
+                "profile": {
+                    "applicable": True,
+                    "is_pop_os": True,
+                    "pretty_name": "Pop!_OS 24.04",
+                    "has_cosmic_signal": True,
+                    "cosmic": {
+                        "commands": {
+                            "cosmic-randr": {"present": False},
+                            "cosmic-settings": {"present": True},
+                            "cosmic-store": {"present": False},
+                        }
+                    },
+                },
+                "display": {"commands": [{"command": "wayland-info", "exit_code": 124}]},
+            }
+        )
+
+        finding_ids = {finding["id"] for finding in findings}
+        self.assertIn("pop-cosmic-missing-support-commands", finding_ids)
+        self.assertIn("pop-cosmic-scan-timeout", finding_ids)
 
 
 if __name__ == "__main__":
