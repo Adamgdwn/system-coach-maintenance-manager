@@ -203,3 +203,41 @@ Status: planned.
 - Add a blocked-escalation output path that prepares human-readable next steps without presenting blocked actions as executable.
 - Improve browser and desktop error states for missing COSMIC commands, unavailable Ollama, timed-out scans, and disabled web research.
 - Re-run governance, unit tests, compile checks, and a live Pop/COSMIC smoke test before promoting the next agent milestone.
+
+## Chunk 18: Portable System Discovery For Public Users
+
+Status: planned.
+
+- Make first-run onboarding assume an unknown machine, not Adam's Pop!_OS workstation.
+- Detect operating system, distribution, desktop environment, package managers, hardware class, GPU, display stack, available privilege helpers, installed local model runtimes, and available maintenance commands.
+- Build a local capability profile that decides which agent surfaces are shown, which scans are available, which actions are blocked, and which docs are most relevant.
+- Keep Pop!_OS + COSMIC as a first-class specialization while allowing Ubuntu/Debian, Fedora, Arch, Windows browser mode, GNOME, KDE, Xfce, and unknown desktops to degrade gracefully.
+- Store machine-specific preferences and learned lessons locally, never in the repository.
+- Add tests with mocked system profiles so public-user customization does not regress Pop/COSMIC behavior.
+
+## Chunk 19: Model Provider And Bring-Your-Own-Key Setup
+
+Status: planned.
+
+- Default to local models through Ollama or another explicitly configured local runtime when available.
+- Do not ship bundled API keys, shared tokens, or owner-funded cloud credentials.
+- Add a provider setup screen that clearly separates:
+  - local model mode with no external API key
+  - bring-your-own-key cloud mode
+  - no-model deterministic fallback mode
+- Store provider settings in a local user config file or environment variables, with secrets excluded from history, logs, reports, and Git.
+- Add provider health checks that explain what is available and what is missing without failing the rest of the app.
+- Keep command selection and execution gates deterministic even when a cloud model is configured.
+- Document recommended local models and optional cloud-provider setup in README and setup guides.
+
+## Chunk 20: Public GitHub Release Readiness
+
+Status: planned.
+
+- Update README for public users with a clear "what this can and cannot do" section.
+- Explain that users need either a local model/runtime, a bring-your-own provider key, or acceptance of deterministic no-model fallback behavior.
+- Add installation and first-run instructions for Linux and browser fallback mode.
+- Add privacy documentation describing what is collected locally, what may be sent to model providers, and how to disable web/cloud features.
+- Add a public safety model covering approval-required actions, elevated execution, blocked destructive actions, research controls, and local history.
+- Add sample screenshots or text walkthroughs for first-run discovery, Request Desk, Approval Queue, and Pop/COSMIC Agent.
+- Add release checklist items for public distribution, secret scanning, dependency review, and fresh-clone smoke tests.
