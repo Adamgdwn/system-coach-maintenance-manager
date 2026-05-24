@@ -25,7 +25,7 @@ This document captures the public GitHub posture for this repository and provide
 Current repository description:
 
 ```text
-Local-first supervised system coach and maintenance manager for Linux, Pop!_OS/COSMIC, and portable system discovery.
+Local-first system coach for understanding, diagnosing, and safely maintaining Linux desktops.
 ```
 
 Current topics:
@@ -181,7 +181,7 @@ Set repository metadata:
 
 ```bash
 gh repo edit Adamgdwn/system-coach-maintenance-manager \
-  --description "Local-first supervised system coach and maintenance manager for Linux, Pop!_OS/COSMIC, and portable system discovery." \
+  --description "Local-first system coach for understanding, diagnosing, and safely maintaining Linux desktops." \
   --add-topic pop-os \
   --add-topic cosmic-desktop \
   --add-topic linux \
