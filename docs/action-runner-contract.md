@@ -4,7 +4,7 @@
 
 The project remains at governance level `1` with autonomy level `A1`. Guarded action execution is enabled only when the user presses Execute and the selected plan passes the action-runner contract.
 
-The Execute button is the user approval event. It runs exact commands in the guarded catalog. Some executable plans apply a current-user setting; others run read-only evidence commands so the next fix is grounded instead of guessed. Elevated plans can request administrator permission through the operating system prompt before running.
+The Execute button starts the approval event, but execution still requires the selected contract's exact confirmation phrase. It runs exact commands in the guarded catalog only after the phrase matches. Some executable plans apply a current-user setting; others run read-only evidence commands so the next fix is grounded instead of guessed. Elevated plans can request administrator permission through the operating system prompt before running.
 
 The reasoning layer may prepare plans that describe higher-risk, privileged, or broad system changes, but those plans do not automatically become executable. The action-runner contract remains the enforcement boundary between "the app can think through this" and "the app can run this now."
 
@@ -90,6 +90,7 @@ Eligible plans can execute when all gate checks pass:
 - explicit `action_runner_enabled: true` in project controls
 - explicit `elevated_action_runner_enabled: true` in project controls for elevated execution
 - the Execute button is pressed by the user
+- the exact contract confirmation phrase is supplied
 - the OS password/UAC prompt is approved for elevated execution
 - every command runs through the subprocess runner with `shell=False`, strict timeout, and output capture
 

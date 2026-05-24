@@ -15,6 +15,7 @@ OLLAMA_URL = "http://127.0.0.1:11434"
 DEFAULT_TIMEOUT = 45
 PREFERRED_MODELS = ["gemma4:latest", "gemma4", "gemma4:e4b", "qwen3:8b", "qwen3", "llama3.1:8b", "mistral"]
 REQUEST_BRAIN_MODELS = ["gemma4:latest", "gemma4", "gemma4:e4b"]
+GEMMA4_MODEL_PREFIX = "gemma4"
 REQUEST_FAMILIES = {
     "unknown",
     "cursor-size",
@@ -82,6 +83,12 @@ def choose_model(models: list[str]) -> str | None:
     if not models:
         return None
     for preferred in PREFERRED_MODELS:
+        if _is_gemma4_model(preferred) and preferred in models:
+            return preferred
+    gemma4_model = _first_available_gemma4_model(models)
+    if gemma4_model:
+        return gemma4_model
+    for preferred in PREFERRED_MODELS:
         if preferred in models:
             return preferred
     return models[0]
@@ -93,7 +100,19 @@ def choose_request_brain_model(models: list[str]) -> str | None:
     for preferred in REQUEST_BRAIN_MODELS:
         if preferred in models:
             return preferred
+    return _first_available_gemma4_model(models)
+
+
+def _first_available_gemma4_model(models: list[str]) -> str | None:
+    for model in models:
+        if _is_gemma4_model(model):
+            return model
     return None
+
+
+def _is_gemma4_model(model: str) -> bool:
+    normalized = model.strip().lower()
+    return normalized == GEMMA4_MODEL_PREFIX or normalized.startswith(f"{GEMMA4_MODEL_PREFIX}:")
 
 
 def _extract_json_object(text: str) -> dict[str, Any]:

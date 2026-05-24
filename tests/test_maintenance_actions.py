@@ -95,13 +95,90 @@ class MaintenanceActionsTests(unittest.TestCase):
             "system_coach_maintenance_manager.maintenance_actions.subprocess.run",
             return_value=CompletedProcess(args=[], returncode=0, stdout="ok\n", stderr=""),
         ) as run:
-            result = execute_guarded_action(contract, "")
+            result = execute_guarded_action(contract, contract["confirmation_phrase"])
 
         self.assertTrue(contract["eligible_for_guarded_execution"])
         self.assertTrue(contract["execution_enabled"])
         self.assertEqual(result["status"], "completed")
         self.assertEqual(result["exit_code"], 0)
         self.assertEqual(run.call_count, 2)
+
+    def test_enabled_contract_blocks_empty_confirmation(self):
+        control_path = self._project_control("governance_level: 1\nautonomy_level: A1\naction_runner_enabled: true\n")
+        plan = {
+            "id": "request-cursor-size-linux",
+            "family": "cursor-size",
+            "title": "Adjust Linux cursor size",
+            "approval_required": True,
+            "execution_enabled": False,
+            "risk": "low",
+            "reversible": True,
+            "requires_privilege": False,
+            "commands": ["gsettings set org.gnome.desktop.interface cursor-size 24"],
+            "expected_effect": "Change the current user's pointer size.",
+            "rollback": ["Restore the previous cursor size."],
+        }
+
+        contract = build_action_contract(plan, project_control_path=control_path)
+
+        with patch("system_coach_maintenance_manager.maintenance_actions.subprocess.run") as run:
+            result = execute_guarded_action(contract, "")
+
+        self.assertTrue(contract["execution_enabled"])
+        self.assertEqual(result["status"], "blocked")
+        self.assertIn("confirmation phrase", result["error"])
+        run.assert_not_called()
+
+    def test_enabled_contract_blocks_wrong_confirmation(self):
+        control_path = self._project_control("governance_level: 1\nautonomy_level: A1\naction_runner_enabled: true\n")
+        plan = {
+            "id": "request-cursor-size-linux",
+            "family": "cursor-size",
+            "title": "Adjust Linux cursor size",
+            "approval_required": True,
+            "execution_enabled": False,
+            "risk": "low",
+            "reversible": True,
+            "requires_privilege": False,
+            "commands": ["gsettings set org.gnome.desktop.interface cursor-size 24"],
+            "expected_effect": "Change the current user's pointer size.",
+            "rollback": ["Restore the previous cursor size."],
+        }
+
+        contract = build_action_contract(plan, project_control_path=control_path)
+
+        with patch("system_coach_maintenance_manager.maintenance_actions.subprocess.run") as run:
+            result = execute_guarded_action(contract, "APPROVE something-else")
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertIn("confirmation phrase", result["error"])
+        run.assert_not_called()
+
+    def test_enabled_contract_blocks_missing_confirmation_phrase(self):
+        control_path = self._project_control("governance_level: 1\nautonomy_level: A1\naction_runner_enabled: true\n")
+        plan = {
+            "id": "request-cursor-size-linux",
+            "family": "cursor-size",
+            "title": "Adjust Linux cursor size",
+            "approval_required": True,
+            "execution_enabled": False,
+            "risk": "low",
+            "reversible": True,
+            "requires_privilege": False,
+            "commands": ["gsettings set org.gnome.desktop.interface cursor-size 24"],
+            "expected_effect": "Change the current user's pointer size.",
+            "rollback": ["Restore the previous cursor size."],
+        }
+
+        contract = build_action_contract(plan, project_control_path=control_path)
+        del contract["confirmation_phrase"]
+
+        with patch("system_coach_maintenance_manager.maintenance_actions.subprocess.run") as run:
+            result = execute_guarded_action(contract, "")
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertIn("confirmation phrase", result["error"])
+        run.assert_not_called()
 
     def test_read_only_evidence_plan_executes_guarded_commands(self):
         control_path = self._project_control("governance_level: 1\nautonomy_level: A1\naction_runner_enabled: true\n")
@@ -125,7 +202,7 @@ class MaintenanceActionsTests(unittest.TestCase):
             "system_coach_maintenance_manager.maintenance_actions.subprocess.run",
             return_value=CompletedProcess(args=[], returncode=0, stdout="log lines\n", stderr=""),
         ) as run:
-            result = execute_guarded_action(contract, "")
+            result = execute_guarded_action(contract, contract["confirmation_phrase"])
 
         self.assertTrue(contract["eligible_for_guarded_execution"])
         self.assertTrue(contract["execution_enabled"])
@@ -154,7 +231,7 @@ class MaintenanceActionsTests(unittest.TestCase):
             "system_coach_maintenance_manager.maintenance_actions.subprocess.run",
             return_value=CompletedProcess(args=[], returncode=0, stdout="evidence\n", stderr=""),
         ) as run:
-            result = execute_guarded_action(contract, "")
+            result = execute_guarded_action(contract, contract["confirmation_phrase"])
 
         self.assertTrue(contract["eligible_for_guarded_execution"])
         self.assertTrue(contract["execution_enabled"])
@@ -188,7 +265,7 @@ class MaintenanceActionsTests(unittest.TestCase):
             "system_coach_maintenance_manager.maintenance_actions.subprocess.run",
             return_value=CompletedProcess(args=[], returncode=0, stdout="ok\n", stderr=""),
         ) as run:
-            result = execute_guarded_action(contract, "")
+            result = execute_guarded_action(contract, contract["confirmation_phrase"])
 
         self.assertTrue(contract["eligible_for_guarded_execution"])
         self.assertTrue(contract["execution_enabled"])
@@ -242,7 +319,7 @@ class MaintenanceActionsTests(unittest.TestCase):
             "system_coach_maintenance_manager.maintenance_actions.subprocess.run",
             return_value=CompletedProcess(args=[], returncode=0, stdout="ok\n", stderr=""),
         ) as run:
-            result = execute_guarded_action(contract, "")
+            result = execute_guarded_action(contract, contract["confirmation_phrase"])
 
         self.assertTrue(contract["eligible_for_guarded_execution"])
         self.assertTrue(contract["execution_enabled"])

@@ -16,8 +16,13 @@ class AiEngineTests(unittest.TestCase):
         model = choose_model(["mistral", "gemma4:latest", "qwen3:8b", "other"])
         self.assertEqual(model, "gemma4:latest")
 
+    def test_choose_model_prefers_any_available_gemma4_before_other_fallbacks(self):
+        model = choose_model(["qwen3:8b", "gemma4:26b", "mistral"])
+        self.assertEqual(model, "gemma4:26b")
+
     def test_choose_request_brain_requires_gemma4(self):
         self.assertEqual(choose_request_brain_model(["qwen3:8b", "gemma4"]), "gemma4")
+        self.assertEqual(choose_request_brain_model(["qwen3:8b", "gemma4:26b"]), "gemma4:26b")
         self.assertIsNone(choose_request_brain_model(["qwen3:8b", "mistral"]))
 
     def test_build_context_includes_report_and_map(self):

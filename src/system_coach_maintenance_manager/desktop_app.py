@@ -917,6 +917,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         gate_reasons = contract.get("execution_gate", {}).get("reasons", [])
         commands = contract.get("command_preview", plan.get("commands", []))
         executable = contract.get("execution_enabled", False)
+        execution_mode = contract.get("execution_mode")
         changes_system = plan.get("family") in {
             "cursor-size",
             "display-brightness",
@@ -1096,17 +1097,72 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
 
     def _start_plan_execution(self, plan: dict) -> None:
         contract = plan.get("action_contract", {})
+        confirmation_text = ""
+        if contract.get("execution_enabled"):
+            confirmation_text = self._show_execution_confirmation_dialog(plan)
+            if confirmation_text is None:
+                self._set_status("Execution canceled before approval.")
+                return
+            if confirmation_text.strip() != str(contract.get("confirmation_phrase", "")).strip():
+                self._set_status("Execution canceled: confirmation phrase did not match.")
+                self._show_action_dialog(
+                    "Execution Not Confirmed",
+                    "The confirmation phrase did not match the selected action. Nothing was executed.",
+                )
+                return
         if contract.get("execution_mode") == "elevated":
             prompt = (contract.get("elevation_prompt") or {}).get("message", "The operating system will ask for administrator approval.")
             self._set_status(f"Executing elevated recommendation. {prompt}")
         else:
             self._set_status("Executing the selected recommendation...")
         self._set_execution_buttons_sensitive(False)
-        threading.Thread(target=self._execute_plan_worker, args=(plan,), daemon=True).start()
+        threading.Thread(target=self._execute_plan_worker, args=(plan, confirmation_text), daemon=True).start()
 
-    def _execute_plan_worker(self, plan: dict) -> None:
+    def _show_execution_confirmation_dialog(self, plan: dict) -> str | None:
         contract = plan.get("action_contract", {})
-        result = execute_guarded_action(contract, "")
+        phrase = str(contract.get("confirmation_phrase", ""))
+        body = "\n".join(
+            [
+                self._plain_plan_summary(plan),
+                "",
+                "Approval confirmation:",
+                f"Type this exact phrase to execute: {phrase}",
+                "",
+                "Execution will run only the exact command(s) shown above.",
+            ]
+        )
+
+        dialog = Gtk.Dialog(title="Confirm Execution", transient_for=self, modal=True)
+        dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
+        dialog.add_button("Execute", Gtk.ResponseType.OK)
+        dialog.set_default_size(780, 560)
+        content = dialog.get_content_area()
+        content.set_border_width(12)
+
+        text_view = self._make_text_view()
+        self._set_text(text_view, body)
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        scroll.set_hexpand(True)
+        scroll.set_vexpand(True)
+        scroll.add(text_view)
+        content.pack_start(scroll, True, True, 0)
+
+        entry = Gtk.Entry()
+        entry.set_placeholder_text(phrase)
+        content.pack_start(entry, False, False, 8)
+
+        dialog.show_all()
+        response = dialog.run()
+        value = entry.get_text()
+        dialog.destroy()
+        if response != Gtk.ResponseType.OK:
+            return None
+        return value
+
+    def _execute_plan_worker(self, plan: dict, confirmation_text: str) -> None:
+        contract = plan.get("action_contract", {})
+        result = execute_guarded_action(contract, confirmation_text)
         record_action_result(result)
         analysis = analyze_action_result(plan, result) if result["status"] == "completed" else None
         GLib.idle_add(self._apply_execution_result, plan, result, analysis)

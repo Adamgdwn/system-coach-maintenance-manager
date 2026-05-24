@@ -298,6 +298,24 @@ def execute_guarded_action(contract: dict, confirmation_text: str) -> dict:
             "rollback": contract.get("rollback", []),
         }
 
+    expected_confirmation = str(contract.get("confirmation_phrase", "")).strip()
+    provided_confirmation = str(confirmation_text or "").strip()
+    if contract.get("approval_required", True) and (not expected_confirmation or provided_confirmation != expected_confirmation):
+        return {
+            "action_id": contract.get("id"),
+            "plan_id": contract.get("plan_id"),
+            "status": "blocked",
+            "started_at": started_at,
+            "finished_at": _now(),
+            "execution_enabled": True,
+            "exit_code": None,
+            "commands": contract.get("command_preview", []),
+            "output": "",
+            "error": "approval confirmation phrase did not match",
+            "post_check": contract.get("post_check", []),
+            "rollback": contract.get("rollback", []),
+        }
+
     outputs = []
     commands = contract.get("command_preview", [])
     family = contract.get("family", "")
