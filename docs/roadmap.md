@@ -2,7 +2,7 @@
 
 ## Current Baseline
 
-The application currently provides local stack review, selected-root filesystem mapping, share summaries, read-only maintenance diagnostics, separated Chat, Gemma-backed Request Desk reasoning, Approval Queue, local maintenance history, guarded current-user and elevated action execution, a universal troubleshooting mental model, evidence-backed follow-up planning, plain-language COSMIC display layout fixes, browser fallback mode, local Ollama-backed coaching, and platform setup/release guidance.
+The application currently provides local stack review, selected-root filesystem mapping, share summaries, read-only maintenance diagnostics, separated Chat, Gemma-backed Request Desk reasoning, Approval Queue, local maintenance history, guarded current-user and elevated action execution, a universal troubleshooting mental model, evidence-backed follow-up planning, plain-language COSMIC display layout fixes, a Pop!_OS + COSMIC guided agent MVP, browser fallback mode, local Ollama-backed coaching, and platform setup/release guidance.
 
 ## Chunk 1: Governance And Release Hygiene
 
@@ -145,3 +145,61 @@ Status: completed.
 - Keep elevated execution approval-required, exact-command-only, catalog-gated, and recorded in history.
 - Show execution mode and elevation prompt details in the desktop recommendation and review surfaces.
 - Keep unsupported, placeholder, and uncatalogued elevated plans blocked with visible reasons.
+
+## Chunk 13: Pop!_OS + COSMIC Guided Agent MVP
+
+Status: completed.
+
+- Add a dedicated Pop!_OS + COSMIC agent surface in desktop and browser mode.
+- Detect Pop!_OS, COSMIC session signals, System76 hardware hints, GPU state, secure boot visibility, and local support commands.
+- Add bounded read-only deep scans for standard, display, updates, and full evidence scopes.
+- Redact home paths, hostnames, obvious secrets, and cap collected output before model analysis or history storage.
+- Add local research records, lesson memory, action records, and verification scans for Pop/COSMIC troubleshooting.
+- Use the local model ladder for Pop/COSMIC analysis while keeping command selection deterministic and catalog-gated.
+- Register Qwen 3, Gemma 4 latest, DeepSeek, GPT-OSS, and Qwen-VL local model roles.
+- Add guarded low-risk Pop/COSMIC actions for evidence collection and opening COSMIC Settings or COSMIC Store.
+- Keep package repair, firmware schedule/install, release upgrade, OS refresh, package purge, broad autoremove, broad config deletion, guessed service restarts, and display-layout mutation blocked in this agent slice.
+- Document the operating loop: scan, identify, assess, analyze, learn, improve, fix approved steps, verify, and save lessons.
+
+## Chunk 14: Server-Side Action Contract Integrity
+
+Status: planned.
+
+- Stop treating client-submitted action contracts as authoritative for execution.
+- Store or rebuild executable contracts server-side from known plan/action identifiers.
+- Require confirmation phrases to match the server-held contract, not a contract echoed back by the client.
+- Reject forged `execution_enabled`, forged confirmation phrases, changed command previews, and mismatched plan/action ids.
+- Preserve the existing command allowlist as a second execution gate after contract integrity checks.
+- Add API and unit tests proving forged normal, elevated, and Pop/COSMIC contracts cannot run.
+- Record blocked forgery attempts in local history with clear reasons.
+
+## Chunk 15: Pop/COSMIC Research Governance Enforcement
+
+Status: planned.
+
+- Make `/api/pop-cosmic/research` obey `project-control.yaml` instead of request-body overrides.
+- Keep live web research disabled unless project controls explicitly enable it.
+- Distinguish local-only research records, official-source metadata records, and live fetched web records in the response and history.
+- Ensure raw local logs are never sent to research providers; only sanitized symptom/profile queries may leave the machine.
+- Add tests proving browser/API payloads cannot override disabled web research.
+- Add a visible governance reason when research is local-only because live research is disabled.
+
+## Chunk 16: Source Allowlist And Research Scope Tightening
+
+Status: planned.
+
+- Replace broad host-only GitHub allowance with path-aware Pop/COSMIC repository rules.
+- Keep official System76 docs, System76 blog/release notes, and official Pop/COSMIC GitHub sources in separate trust tiers.
+- Reject non-HTTPS, unknown-domain, and unrelated GitHub URLs before any fetch.
+- Add tests for allowed System76 URLs, allowed Pop/COSMIC GitHub URLs, rejected broad GitHub URLs, and rejected unrelated domains.
+- Keep community sources advisory only; they may inform questions or evidence requests, but not justify risky fixes by themselves.
+
+## Chunk 17: Pop/COSMIC Agent Robustness Polish
+
+Status: planned.
+
+- Add server/API tests for Pop/COSMIC profile, deep scan, research, analyze, plan, execute, and verify endpoints.
+- Improve verification lessons so they record the action result, observed post-scan evidence, and whether improvement was user-confirmed.
+- Add a blocked-escalation output path that prepares human-readable next steps without presenting blocked actions as executable.
+- Improve browser and desktop error states for missing COSMIC commands, unavailable Ollama, timed-out scans, and disabled web research.
+- Re-run governance, unit tests, compile checks, and a live Pop/COSMIC smoke test before promoting the next agent milestone.
