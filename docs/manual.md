@@ -9,6 +9,7 @@ System Coach and Maintenance Manager is a local-first desktop tool for understan
 - Local review probes run bounded, read-only checks.
 - Filesystem mapping only scans roots selected by the user.
 - AI coaching is grounded in the generated report and selected map.
+- Model Provider Setup separates local Ollama mode, bring-your-own-key cloud readiness, and no-model deterministic fallback. Cloud mode stores only an API-key environment variable name, not the key value.
 - Gemma 4 through local Ollama is the Request Desk reasoning brain when available. Before it asks follow-up questions, the app collects bounded read-only evidence relevant to the request, such as display topology, audio devices, network routes, package-manager state, Docker usage, startup entries, performance basics, services, or recent logs.
 - Maintenance diagnostics run as read-only observations and recommendations.
 - Request Desk plans cover common troubleshooting families and remain approval-required.
@@ -19,6 +20,7 @@ System Coach and Maintenance Manager is a local-first desktop tool for understan
 - Approved-action contracts gate execution. The Execute button runs eligible current-user plans directly and eligible elevated plans through an OS password/UAC prompt after user approval.
 - Local history records diagnostic snapshots, request-plan previews, action results, and learning notes for later review.
 - Any repair or cleanup action must require explicit user approval before execution.
+- Public users should start by reviewing the Capability Profile and Model Provider Setup before running Request Desk or approval flows on an unfamiliar machine.
 
 ## Governance
 
@@ -56,3 +58,4 @@ Future maintenance-manager expansion should prioritize:
 - command previews before any fix is run
 - auditable logs of checks, recommendations, and approved actions
 - Windows and Linux browser-mode support, with native Linux GTK mode where GTK is installed
+- public-release checks for privacy, provider setup, fresh-clone behavior, and approval-gated execution

@@ -17,6 +17,12 @@ If you have ever asked "What is actually installed here?" or "Why do these tools
 - Risk tier: medium
 - Production status: local desktop app ready to share and explore
 
+## Public Use At A Glance
+
+This app can inspect your machine locally, explain what it finds, prepare approval-required maintenance plans, and run only guarded catalogued actions after you approve the exact plan. It can use local Ollama models, your own cloud-provider key, or deterministic no-model fallback.
+
+This app cannot silently repair your computer, execute model-invented commands, run client-submitted action contracts, ship bundled API keys, or upload logs by default. Destructive package, firmware, OS refresh, purge, broad config deletion, and guessed service restart actions remain blocked unless a future guarded contract explicitly supports them.
+
 ## Quick Start
 
 Requirements:
@@ -59,6 +65,15 @@ On Windows, use browser mode first:
 ```powershell
 $env:PYTHONPATH="src"; python -m system_coach_maintenance_manager --browser
 ```
+
+First run for public users:
+
+1. Start browser fallback mode.
+2. Review the Capability Profile.
+3. Choose local Ollama, bring-your-own-key cloud mode, or deterministic fallback in Model Provider Setup.
+4. Run Local Review.
+5. Run Maintenance Diagnostics.
+6. Review every Request Desk or Approval Queue plan before executing anything.
 
 Install the desktop entry:
 
@@ -116,6 +131,9 @@ python3 -m compileall src tests
 - `docs/maintenance-manager-plan.md`
 - `docs/system-capability-profile.md`
 - `docs/model-provider-setup.md`
+- `docs/public-release-guide.md`
+- `docs/privacy-and-safety.md`
+- `docs/public-walkthrough.md`
 - `docs/pop-cosmic-agent.md`
 - `docs/action-runner-contract.md`
 - `docs/setup-linux.md`

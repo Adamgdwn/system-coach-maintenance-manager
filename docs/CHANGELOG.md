@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Completed roadmap Chunk 20 by adding public release guidance, privacy and safety documentation, a public walkthrough, expanded release checks, public-user README framing, and risk-register coverage for cloud-provider secrets and unsupported-machine distribution.
 - Completed roadmap Chunk 19 by adding model provider setup and health checks for local Ollama, bring-your-own-key cloud readiness, and deterministic fallback, with redacted local config storage and tests proving raw API keys are neither saved nor returned.
 - Completed roadmap Chunk 18 by adding a portable system capability profile, `/api/capabilities`, browser/desktop capability summaries, local-storage guidance, and mocked Linux/Windows discovery tests for Pop/COSMIC and non-Pop public installs.
 - Completed roadmap Chunk 17 by adding full Pop/COSMIC server endpoint tests, clearer blocked-escalation output, user-confirmation-aware verification lessons, and browser/desktop error states for missing COSMIC commands, local model fallback, scan timeouts, and disabled web research.

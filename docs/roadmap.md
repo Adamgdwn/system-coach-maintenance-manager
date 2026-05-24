@@ -232,7 +232,7 @@ Status: completed.
 
 ## Chunk 20: Public GitHub Release Readiness
 
-Status: planned.
+Status: completed.
 
 - Update README for public users with a clear "what this can and cannot do" section.
 - Explain that users need either a local model/runtime, a bring-your-own provider key, or acceptance of deterministic no-model fallback behavior.

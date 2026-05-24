@@ -27,6 +27,11 @@ controls:
     - docs/deployment-guide.md
     - docs/runbook.md
     - docs/action-runner-contract.md
+    - docs/system-capability-profile.md
+    - docs/model-provider-setup.md
+    - docs/public-release-guide.md
+    - docs/privacy-and-safety.md
+    - docs/public-walkthrough.md
     - docs/setup-linux.md
     - docs/setup-windows-browser.md
     - docs/release-checklist.md
