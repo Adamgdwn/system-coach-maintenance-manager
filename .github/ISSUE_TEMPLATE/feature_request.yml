@@ -1,0 +1,46 @@
+name: Feature request
+description: Suggest a feature while preserving the supervised safety model.
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feature ideas are welcome. The project keeps command selection deterministic and approval-gated, even when a model provider is configured.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or workflow
+      description: What user workflow should improve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the user-visible behavior. Avoid proposing hidden autonomous execution.
+    validations:
+      required: true
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Risk level
+      options:
+        - Documentation or wording only
+        - Read-only local inspection
+        - New deterministic plan with no execution
+        - New guarded user-level execution
+        - New elevated execution
+        - Web/cloud/model-provider behavior
+        - Unsure
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety expectations
+      options:
+        - label: This should preserve approval-required actions, exact command previews, confirmation phrases, and guarded catalogs.
+          required: true
+        - label: This should not require bundled/shared API keys or owner-funded cloud credentials.
+          required: true

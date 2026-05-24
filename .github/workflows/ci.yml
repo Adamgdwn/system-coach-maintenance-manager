@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  validation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Governance preflight
+        run: bash scripts/governance-preflight.sh
+
+      - name: Unit tests
+        run: PYTHONPATH=src python3 -m unittest discover -s tests -p 'test_*.py'
+
+      - name: Compile Python
+        run: python3 -m compileall src tests
+
+      - name: Browser JavaScript syntax
+        run: node --check src/system_coach_maintenance_manager/web/app.js
+
+      - name: Diff whitespace check
+        run: git diff --check
+
+      - name: Basic secret pattern scan
+        run: |
+          ! git grep -nE '(sk-[A-Za-z0-9_-]{12,}|api[_-]?key\s*[:=]\s*[^" ]+|password\s*[:=])' -- \
+            ':!docs/release-checklist.md' \
+            ':!docs/model-provider-setup.md' \
+            ':!docs/privacy-and-safety.md' \
+            ':!docs/setup-linux.md' \
+            ':!docs/setup-windows-browser.md' \
+            ':!tests/test_model_providers.py' \
+            ':!tests/test_server_capabilities.py' \
+            ':!tests/test_pop_cosmic_deep_scan.py' \
+            ':!project-control.yaml'
+
+      - name: Browser API smoke
+        run: |
+          tmpdir="$(mktemp -d)"
+          SYSTEM_COACH_CONFIG_DIR="$tmpdir/config" \
+          SYSTEM_COACH_HISTORY_DIR="$tmpdir/history" \
+          PYTHONUNBUFFERED=1 \
+          PYTHONPATH=src \
+          python3 -m system_coach_maintenance_manager --browser --no-browser > "$tmpdir/server.log" 2>&1 &
+          server_pid=$!
+          url=""
+          for _ in 1 2 3 4 5 6 7 8 9 10; do
+            url="$(sed -n 's/.*running at //p' "$tmpdir/server.log" | tail -1)"
+            if [ -n "$url" ]; then
+              break
+            fi
+            sleep 0.5
+          done
+          if [ -z "$url" ]; then
+            cat "$tmpdir/server.log"
+            kill "$server_pid" 2>/dev/null || true
+            exit 1
+          fi
+          curl -fsS "$url/health"
+          curl -fsS "$url/api/capabilities" >/dev/null
+          curl -fsS "$url/api/model-provider" >/dev/null
+          kill "$server_pid"
+          wait "$server_pid" 2>/dev/null || true

@@ -1,0 +1,75 @@
+name: Bug report
+description: Report a reproducible problem without sharing private machine data.
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this. Please do not paste raw local history, full logs, API keys, tokens, hostnames, private paths, screenshots with personal info, or command output you have not reviewed.
+  - type: checkboxes
+    id: privacy-check
+    attributes:
+      label: Privacy check
+      options:
+        - label: I reviewed the text below and removed private paths, hostnames, account names, tokens, API keys, and sensitive command output.
+          required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the visible behavior and what you expected.
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: App surface
+      options:
+        - Browser fallback
+        - Native GTK desktop
+        - Capability Profile
+        - Model Provider Setup
+        - Local Review
+        - Maintenance Diagnostics
+        - Request Desk
+        - Approval Queue / guarded execution
+        - Pop!_OS + COSMIC Agent
+        - History
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment summary
+      description: Use the Capability Profile summary if possible. Keep it short and redact private details.
+      placeholder: "OS/distribution, desktop/session, app mode, Python version, model mode, relevant command availability."
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Launch with ...
+        2. Open ...
+        3. Click ...
+        4. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: safe-output
+    attributes:
+      label: Redacted output or screenshots
+      description: Include only reviewed, redacted excerpts. Do not paste raw JSONL history or raw logs.
+  - type: checkboxes
+    id: validation
+    attributes:
+      label: Checks already tried
+      options:
+        - label: I ran `bash scripts/governance-preflight.sh`.
+        - label: I ran `PYTHONPATH=src python3 -m unittest discover -s tests -p 'test_*.py'`.
+        - label: I ran `python3 -m compileall src tests`.
+        - label: I confirmed `/health` responds in browser mode.

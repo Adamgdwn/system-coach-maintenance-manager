@@ -23,6 +23,10 @@ This app can inspect your machine locally, explain what it finds, prepare approv
 
 This app cannot silently repair your computer, execute model-invented commands, run client-submitted action contracts, ship bundled API keys, or upload logs by default. Destructive package, firmware, OS refresh, purge, broad config deletion, and guessed service restart actions remain blocked unless a future guarded contract explicitly supports them.
 
+Before opening a GitHub issue, read `SUPPORT.md` and `docs/privacy-and-safety.md`. Do not paste raw local history, full logs, API keys, tokens, hostnames, private paths, or screenshots with personal information. Use the GitHub issue templates so reports preserve the privacy and safety boundaries.
+
+GitHub pull requests run CI for governance preflight, unit tests, compile checks, browser JavaScript syntax, secret-pattern scanning, and a browser API smoke test.
+
 ## Quick Start
 
 Requirements:
@@ -125,6 +129,10 @@ python3 -m compileall src tests
 
 ## Documentation
 
+- `LICENSE`
+- `CONTRIBUTING.md`
+- `SECURITY.md`
+- `SUPPORT.md`
 - `docs/architecture.md`
 - `docs/deployment-guide.md`
 - `docs/runbook.md`

@@ -21,6 +21,10 @@ data_classification:
 controls:
   required_docs:
     - README.md
+    - LICENSE
+    - CONTRIBUTING.md
+    - SECURITY.md
+    - SUPPORT.md
     - docs/architecture.md
     - docs/manual.md
     - docs/roadmap.md

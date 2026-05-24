@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Privacy and safety guidance
+    url: https://github.com/Adamgdwn/system-coach-maintenance-manager/blob/main/docs/privacy-and-safety.md
+    about: Read this before sharing logs, command output, provider settings, or local history.
+  - name: Public release guide
+    url: https://github.com/Adamgdwn/system-coach-maintenance-manager/blob/main/docs/public-release-guide.md
+    about: Start here if you are installing or evaluating the project from GitHub.

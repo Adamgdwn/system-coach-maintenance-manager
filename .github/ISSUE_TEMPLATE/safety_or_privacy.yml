@@ -1,0 +1,50 @@
+name: Safety or privacy concern
+description: Report a possible safety, privacy, provider, or execution-boundary issue.
+title: "[Safety]: "
+labels: ["safety", "privacy", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for concerns about private data handling, model-provider secrets, web research, local history, action execution, elevated prompts, or the server-side action registry.
+
+        Do not include secrets, API keys, raw logs, or full local history. If this is a sensitive vulnerability, follow `SECURITY.md` instead of opening a public issue.
+  - type: checkboxes
+    id: public-safe
+    attributes:
+      label: Public disclosure check
+      options:
+        - label: This report does not include secrets, private logs, raw local history, or exploit instructions that would put users at risk.
+          required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Concern area
+      options:
+        - Local history or filesystem mapping
+        - Model Provider Setup / BYO-key handling
+        - Pop/COSMIC research or source allowlist
+        - Action contract / plan registry
+        - Elevated execution
+        - UI wording or user caveat
+        - Documentation gap
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: concern
+    attributes:
+      label: Concern
+      description: Explain the risk in user-facing terms.
+    validations:
+      required: true
+  - type: textarea
+    id: expected-control
+    attributes:
+      label: Expected control
+      description: What should the app or docs do instead?
+  - type: textarea
+    id: redacted-evidence
+    attributes:
+      label: Redacted evidence
+      description: Add only the smallest safe excerpt needed to understand the issue.
