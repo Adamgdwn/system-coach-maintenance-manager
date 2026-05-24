@@ -964,7 +964,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         elif executable and changes_system:
             action = "Execute will apply this low-risk current-user setting change."
         elif executable:
-            action = "Execute will run these guarded command(s), capture the output, and ask Gemma for the best next fix direction."
+            action = "Execute will run these guarded command(s), capture the output, and ask the local model for the best next fix direction."
         else:
             action = "Execute will not run this plan yet because the guarded runner blocked it."
 
@@ -1173,7 +1173,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         if result["status"] == "completed":
             analysis = analysis or {}
             followup_plan = self._prepare_followup_plan_from_execution(plan, result, analysis)
-            analysis_label = f"Gemma analysis [{analysis.get('model')}]" if analysis.get("model") else "Gemma analysis"
+            analysis_label = f"Local model analysis [{analysis.get('model')}]" if analysis.get("model") else "Local model analysis"
             body_lines = [
                 "Execution completed.",
                 "",
@@ -1207,7 +1207,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             status = (
                 "Investigation complete. A concrete fix is ready in Request Desk."
                 if followup_plan
-                else "Execution completed. Gemma analyzed the output."
+                else "Execution completed. The local model analyzed the output."
             )
             if plan is self.current_request_plan and not followup_plan:
                 self._set_text(
@@ -1372,7 +1372,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self.request_send_button.set_sensitive(False)
         self.prepare_request_button.set_sensitive(False)
         self.execute_request_button.set_sensitive(False)
-        self._set_status("Gemma is thinking through the request...")
+        self._set_status("The local model is thinking through the request...")
         threading.Thread(
             target=self._request_brain_worker,
             args=(request_text, os_name, desktop_hint, self.current_maintenance, force_plan),
@@ -1410,7 +1410,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
                     "investigation_steps": fallback.get("questions", []),
                     "permission_plan": "Prepare an approval-required plan before executing any change.",
                     "reasoning_summary": reasoning.get("reasoning_summary", ""),
-                    "model_error": reasoning.get("acknowledgement", "Gemma request analysis was unavailable."),
+                    "model_error": reasoning.get("acknowledgement", "Local model request analysis was unavailable."),
                     "request_evidence": evidence,
                 }
             )
@@ -1425,7 +1425,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
 
         source = reasoning.get("source", "deterministic")
         model = reasoning.get("model")
-        brain_label = f"Gemma [{model}]" if source == "gemma" and model else source.replace("-", " ").title()
+        brain_label = f"Local model [{model}]" if source == "local-model" and model else source.replace("-", " ").title()
 
         if reasoning.get("model_error"):
             self._append_request_message("Request Desk", reasoning["model_error"])
@@ -1463,7 +1463,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             self.request_context.append(request_text)
             self._append_request_message("You", request_text)
             self.request_entry.set_text("")
-        self._append_request_message("Request Desk", "I will ask Gemma to prepare the best guarded path from the details available now.")
+        self._append_request_message("Request Desk", "I will ask the local model to prepare the best guarded path from the details available now.")
         self._start_request_brain(self._combined_request_context() or request_text, force_plan=True)
 
     def _prepare_request_plan(self, request_text: str, reasoning: dict | None = None) -> None:

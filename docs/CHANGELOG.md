@@ -27,6 +27,7 @@
 - Renamed the application, package, launchers, desktop IDs, environment variable, and documentation to System Coach and Maintenance Manager.
 - Completed roadmap Chunk 7 by adding an approved-action contract with command previews, timeout/output/post-check/rollback fields, confirmation phrases, UI visibility, and history-compatible action results.
 - Completed roadmap Chunk 8 as a guarded scaffold: low-risk eligibility checks and blocked action-run results exist, but execution remains disabled pending governance reassessment.
+- Changed local model selection to start with efficient Qwen 3 for routine coaching and Request Desk reasoning, then fall back through Gemma, DeepSeek R1, and GPT-OSS for heavier local reasoning.
 - Completed roadmap Chunk 5 by separating Chat, Request Desk, Approval Queue, and History surfaces and adding changed-since-last diagnostic summaries.
 - Completed roadmap Chunk 6 by adding packaging metadata, Linux and Windows browser setup guides, and a release checklist.
 - Completed roadmap Chunk 3 by expanding the Request Desk to cover display, audio, network/DNS, package/update, Docker cleanup, startup app, and slow-computer triage families.

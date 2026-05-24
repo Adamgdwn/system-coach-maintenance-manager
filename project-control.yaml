@@ -45,14 +45,17 @@ agent_controls:
   autonomy_level: A1
   model_registry:
     - provider: ollama
+      model: qwen3:8b
+      role: efficient-local-coach-and-request-brain
+    - provider: ollama
       model: gemma4:latest
-      role: primary-local-coach-and-request-brain
+      role: local-general-reasoning-fallback
     - provider: ollama
       model: deepseek-r1:14b
-      role: local-reasoning-fallback
+      role: local-reasoning-escalation
     - provider: ollama
-      model: qwen3:8b
-      role: local-general-fallback
+      model: gpt-oss:20b
+      role: heavy-local-reasoning-escalation
     - provider: ollama
       model: qwen3-vl:8b
       role: local-vision-capable-fallback

@@ -14,6 +14,8 @@ from .troubleshooting_model import troubleshooting_prompt_block
 OLLAMA_URL = "http://127.0.0.1:11434"
 DEFAULT_TIMEOUT = 45
 PREFERRED_MODELS = [
+    "qwen3:8b",
+    "qwen3",
     "gemma4:latest",
     "gemma4",
     "gemma4:e4b",
@@ -21,16 +23,14 @@ PREFERRED_MODELS = [
     "gemma4:31b",
     "deepseek-r1:14b",
     "deepseek-r1",
+    "gpt-oss:20b",
     "gpt-oss",
     "gptoss",
-    "qwen3:8b",
     "qwen3-vl:8b",
-    "qwen3",
     "llama3.1:8b",
     "mistral",
 ]
-REQUEST_BRAIN_MODELS = ["gemma4:latest", "gemma4", "gemma4:e4b"]
-GEMMA4_MODEL_PREFIX = "gemma4"
+REQUEST_BRAIN_MODELS = ["qwen3:8b", "qwen3", "gemma4:latest", "gemma4", "gemma4:e4b", "deepseek-r1:14b", "gpt-oss:20b"]
 REQUEST_FAMILIES = {
     "unknown",
     "cursor-size",
@@ -98,36 +98,27 @@ def choose_model(models: list[str]) -> str | None:
     if not models:
         return None
     for preferred in PREFERRED_MODELS:
-        if _is_gemma4_model(preferred) and preferred in models:
-            return preferred
-    gemma4_model = _first_available_gemma4_model(models)
-    if gemma4_model:
-        return gemma4_model
-    for preferred in PREFERRED_MODELS:
         if preferred in models:
             return preferred
     return models[0]
 
 
 def choose_request_brain_model(models: list[str]) -> str | None:
+    candidates = choose_request_brain_models(models)
+    return candidates[0] if candidates else None
+
+
+def choose_request_brain_models(models: list[str]) -> list[str]:
     if not models:
-        return None
+        return []
+    selected: list[str] = []
     for preferred in REQUEST_BRAIN_MODELS:
         if preferred in models:
-            return preferred
-    return _first_available_gemma4_model(models)
-
-
-def _first_available_gemma4_model(models: list[str]) -> str | None:
+            selected.append(preferred)
     for model in models:
-        if _is_gemma4_model(model):
-            return model
-    return None
-
-
-def _is_gemma4_model(model: str) -> bool:
-    normalized = model.strip().lower()
-    return normalized == GEMMA4_MODEL_PREFIX or normalized.startswith(f"{GEMMA4_MODEL_PREFIX}:")
+        if model not in selected:
+            selected.append(model)
+    return selected
 
 
 def _extract_json_object(text: str) -> dict[str, Any]:
@@ -206,7 +197,7 @@ def build_request_reasoning_prompt(
     compact_evidence = _compact_request_evidence(request_evidence)
     return "\n".join(
         [
-            "You are Gemma acting as the thinking brain for System Coach and Maintenance Manager.",
+            "You are the local thinking brain for System Coach and Maintenance Manager.",
             troubleshooting_prompt_block(),
             "",
             "Build an evidence-based troubleshooting hypothesis for the user's maintenance request.",
@@ -273,20 +264,20 @@ def reason_about_request(
             "family": "unknown",
             "ready": False,
             "acknowledgement": status["message"],
-            "questions": ["Start Ollama with the configured Gemma model, or prepare a plan from deterministic rules."],
+            "questions": ["Start Ollama with a supported local model, or prepare a plan from deterministic rules."],
             "reasoning_summary": "Local model was not available.",
         }
-    request_model = choose_request_brain_model(status.get("models", []))
-    if not request_model:
+    request_models = choose_request_brain_models(status.get("models", []))
+    if not request_models:
         return {
             "ok": False,
             "source": "unavailable",
             "model": None,
             "family": "unknown",
             "ready": False,
-            "acknowledgement": "Gemma 4 is not available in Ollama, so the Request Desk reasoning brain is offline.",
-            "questions": ["Install or start the configured gemma4:latest model, then try the Request Desk again."],
-            "reasoning_summary": "Configured Gemma 4 request brain was not available.",
+            "acknowledgement": "No supported local Request Desk reasoning model is available in Ollama.",
+            "questions": ["Install or start a supported local model, then try the Request Desk again."],
+            "reasoning_summary": "Configured local request brain was not available.",
         }
 
     prompt = build_request_reasoning_prompt(
@@ -298,27 +289,36 @@ def reason_about_request(
         learning_context=learning_context,
     )
 
-    try:
-        data = _post_json(
-            "/api/generate",
-            {
-                "model": request_model,
-                "prompt": prompt,
-                "stream": False,
-                "format": "json",
-                "options": {"temperature": 0.1},
-            },
-            timeout=30,
-        )
-        parsed = _extract_json_object(data.get("response", ""))
-    except (urllib.error.URLError, json.JSONDecodeError, ValueError) as exc:
+    request_model = request_models[0]
+    parsed: dict[str, Any] | None = None
+    last_error: Exception | None = None
+    for candidate_model in request_models:
+        request_model = candidate_model
+        try:
+            data = _post_json(
+                "/api/generate",
+                {
+                    "model": candidate_model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "format": "json",
+                    "options": {"temperature": 0.1},
+                },
+                timeout=30,
+            )
+            parsed = _extract_json_object(data.get("response", ""))
+            break
+        except (urllib.error.URLError, json.JSONDecodeError, ValueError) as exc:
+            last_error = exc
+
+    if parsed is None:
         return {
             "ok": False,
             "source": "model-error",
             "model": request_model,
             "family": "unknown",
             "ready": False,
-            "acknowledgement": f"Gemma could not return a usable request analysis: {exc}",
+            "acknowledgement": f"No local model returned a usable request analysis: {last_error}",
             "questions": ["Try again, or prepare a plan from deterministic rules."],
             "reasoning_summary": "Local model request analysis failed.",
         }
@@ -352,7 +352,7 @@ def reason_about_request(
 
     return {
         "ok": True,
-        "source": "gemma",
+        "source": "local-model",
         "model": request_model,
         "family": family,
         "ready": bool(parsed.get("ready") or (family != "unknown" and evidence_family)),
@@ -368,7 +368,7 @@ def reason_about_request(
 
 
 def analyze_action_result(plan: dict, result: dict) -> dict[str, Any]:
-    """Ask Gemma to turn executed command output into a useful next-step summary."""
+    """Ask the local reasoning ladder to turn command output into a useful next-step summary."""
 
     status = get_engine_status()
     request_model = choose_request_brain_model(status.get("models", [])) if status.get("available") else None
@@ -376,13 +376,13 @@ def analyze_action_result(plan: dict, result: dict) -> dict[str, Any]:
         return {
             "ok": False,
             "model": None,
-            "analysis": "Gemma analysis is unavailable. Review the command output directly.",
+            "analysis": "Local model analysis is unavailable. Review the command output directly.",
         }
 
     output = _strip_ansi(str(result.get("output", "")))[:12000]
     prompt = "\n".join(
         [
-            "You are Gemma acting as the maintenance reasoning brain after an approved Execute action.",
+            "You are the local maintenance reasoning brain after an approved Execute action.",
             troubleshooting_prompt_block(),
             "",
             "The user wants concise, useful troubleshooting, not generic caveats.",
@@ -414,12 +414,12 @@ def analyze_action_result(plan: dict, result: dict) -> dict[str, Any]:
             timeout=30,
         )
     except urllib.error.URLError as exc:
-        return {"ok": False, "model": request_model, "analysis": f"Could not reach Gemma for result analysis: {exc.reason}"}
+        return {"ok": False, "model": request_model, "analysis": f"Could not reach the local model for result analysis: {exc.reason}"}
 
     return {
         "ok": True,
         "model": request_model,
-        "analysis": data.get("response", "").strip() or "Gemma returned an empty result analysis.",
+        "analysis": data.get("response", "").strip() or "The local model returned an empty result analysis.",
     }
 
 

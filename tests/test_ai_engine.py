@@ -14,20 +14,23 @@ from system_coach_maintenance_manager.ai_engine import (
 class AiEngineTests(unittest.TestCase):
     def test_choose_model_prefers_known_models(self):
         model = choose_model(["mistral", "gemma4:latest", "qwen3:8b", "other"])
-        self.assertEqual(model, "gemma4:latest")
+        self.assertEqual(model, "qwen3:8b")
 
-    def test_choose_model_prefers_any_available_gemma4_before_other_fallbacks(self):
+    def test_choose_model_uses_gemma_when_qwen_is_missing(self):
         model = choose_model(["qwen3:8b", "gemma4:26b", "mistral"])
+        self.assertEqual(model, "qwen3:8b")
+
+        model = choose_model(["gemma4:26b", "mistral"])
         self.assertEqual(model, "gemma4:26b")
 
     def test_choose_model_accepts_new_local_model_family_fallbacks(self):
-        self.assertEqual(choose_model(["qwen3:8b", "deepseek-r1:14b"]), "deepseek-r1:14b")
-        self.assertEqual(choose_model(["qwen3-vl:8b", "gpt-oss"]), "gpt-oss")
+        self.assertEqual(choose_model(["qwen3:8b", "deepseek-r1:14b"]), "qwen3:8b")
+        self.assertEqual(choose_model(["qwen3-vl:8b", "gpt-oss:20b"]), "gpt-oss:20b")
 
-    def test_choose_request_brain_requires_gemma4(self):
-        self.assertEqual(choose_request_brain_model(["qwen3:8b", "gemma4"]), "gemma4")
-        self.assertEqual(choose_request_brain_model(["qwen3:8b", "gemma4:26b"]), "gemma4:26b")
-        self.assertIsNone(choose_request_brain_model(["qwen3:8b", "mistral"]))
+    def test_choose_request_brain_uses_local_ladder(self):
+        self.assertEqual(choose_request_brain_model(["qwen3:8b", "gemma4"]), "qwen3:8b")
+        self.assertEqual(choose_request_brain_model(["gemma4", "deepseek-r1:14b"]), "gemma4")
+        self.assertEqual(choose_request_brain_model(["deepseek-r1:14b", "gpt-oss:20b"]), "deepseek-r1:14b")
 
     def test_build_context_includes_report_and_map(self):
         report = {
@@ -101,10 +104,10 @@ class AiEngineTests(unittest.TestCase):
         self.assertIn("permission_plan", prompt)
         self.assertIn("The family is the current investigation lane, not a final diagnosis", prompt)
 
-    def test_reason_about_request_uses_gemma_structured_json(self):
+    def test_reason_about_request_uses_local_model_structured_json(self):
         with patch(
             "system_coach_maintenance_manager.ai_engine._get_json",
-            return_value={"models": [{"name": "gemma4:latest"}]},
+            return_value={"models": [{"name": "qwen3:8b"}, {"name": "gemma4:latest"}]},
         ), patch(
             "system_coach_maintenance_manager.ai_engine._post_json",
             return_value={
@@ -128,8 +131,8 @@ class AiEngineTests(unittest.TestCase):
             )
 
         self.assertTrue(result["ok"])
-        self.assertEqual(result["source"], "gemma")
-        self.assertEqual(result["model"], "gemma4:latest")
+        self.assertEqual(result["source"], "local-model")
+        self.assertEqual(result["model"], "qwen3:8b")
         self.assertEqual(result["family"], "display-dock")
         self.assertEqual(result["alternate_families"], ["display"])
         self.assertIn("supports", result["evidence_assessment"])
@@ -197,21 +200,28 @@ class AiEngineTests(unittest.TestCase):
 
         self.assertEqual(result["family"], "display-dock")
 
-    def test_reason_about_request_does_not_use_non_gemma_model(self):
+    def test_reason_about_request_falls_back_to_heavier_model_on_invalid_json(self):
         with patch(
             "system_coach_maintenance_manager.ai_engine._get_json",
-            return_value={"models": [{"name": "qwen3:8b"}]},
-        ):
+            return_value={"models": [{"name": "qwen3:8b"}, {"name": "gemma4:latest"}]},
+        ), patch(
+            "system_coach_maintenance_manager.ai_engine._post_json",
+            side_effect=[
+                {"response": "not json"},
+                {"response": '{"family":"display","ready":true,"acknowledgement":"I classified it.","questions":[]}'},
+            ],
+        ) as post_json:
             result = reason_about_request("fix my display", os_name="Linux")
 
-        self.assertFalse(result["ok"])
-        self.assertEqual(result["source"], "unavailable")
-        self.assertIn("Gemma 4", result["acknowledgement"])
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["source"], "local-model")
+        self.assertEqual(result["model"], "gemma4:latest")
+        self.assertEqual(post_json.call_count, 2)
 
-    def test_analyze_action_result_uses_gemma(self):
+    def test_analyze_action_result_uses_local_ladder(self):
         with patch(
             "system_coach_maintenance_manager.ai_engine._get_json",
-            return_value={"models": [{"name": "gemma4:latest"}]},
+            return_value={"models": [{"name": "qwen3:8b"}, {"name": "gemma4:latest"}]},
         ), patch(
             "system_coach_maintenance_manager.ai_engine._post_json",
             return_value={"response": "What I found\nDisplayLink dock evidence.\n\nBest next fix\nPrepare a display layout reset."},
@@ -222,7 +232,7 @@ class AiEngineTests(unittest.TestCase):
             )
 
         self.assertTrue(result["ok"])
-        self.assertEqual(result["model"], "gemma4:latest")
+        self.assertEqual(result["model"], "qwen3:8b")
         self.assertIn("DisplayLink", result["analysis"])
 
 
