@@ -34,6 +34,196 @@ from .request_plans import format_request_plan, prepare_request_plan, review_req
 from .scanner import map_filesystem, suggest_roots
 
 
+DESKTOP_CSS = b"""
+window {
+  background-color: #f4efe6;
+  color: #2b2115;
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+}
+
+.app-scroll {
+  background-color: #f4efe6;
+  border: 0;
+}
+
+.app-root {
+  padding: 28px;
+  background-image:
+    radial-gradient(circle at top left, rgba(12, 122, 97, 0.14), transparent 28%),
+    radial-gradient(circle at top right, rgba(191, 95, 47, 0.16), transparent 24%),
+    linear-gradient(to bottom, #faf5ec, #f4efe6);
+}
+
+.hero-panel {
+  padding: 28px;
+  border-radius: 26px;
+  border: 1px solid rgba(84, 62, 34, 0.16);
+  background-image: linear-gradient(135deg, rgba(255, 250, 243, 0.96), rgba(239, 226, 204, 0.92));
+  box-shadow: 0 20px 45px rgba(86, 67, 39, 0.12);
+}
+
+.eyebrow-label {
+  color: #0c7a61;
+  letter-spacing: 0.18em;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.hero-title {
+  color: #2b2115;
+  font-size: 30px;
+  font-weight: 800;
+}
+
+.hero-subtitle,
+.muted-label {
+  color: #705d43;
+}
+
+.status-strip {
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(12, 122, 97, 0.15);
+  background-color: rgba(12, 122, 97, 0.07);
+  color: #2b2115;
+}
+
+.engine-strip {
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(191, 95, 47, 0.16);
+  background-color: rgba(191, 95, 47, 0.07);
+  color: #705d43;
+}
+
+button {
+  min-height: 38px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 0;
+  color: #ffffff;
+  background-image: linear-gradient(135deg, #0c7a61, #0a5d4a);
+  box-shadow: 0 10px 20px rgba(12, 122, 97, 0.22);
+}
+
+button label {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+button:hover {
+  background-image: linear-gradient(135deg, #108c70, #0b6954);
+}
+
+button:disabled {
+  opacity: 0.62;
+}
+
+.secondary-button {
+  background-image: linear-gradient(135deg, #bf5f2f, #9f461c);
+  box-shadow: 0 10px 20px rgba(191, 95, 47, 0.18);
+}
+
+.secondary-button:hover {
+  background-image: linear-gradient(135deg, #cf6b38, #aa4c20);
+}
+
+.nav-button {
+  background-image: none;
+  background-color: rgba(12, 122, 97, 0.10);
+  border: 1px solid rgba(12, 122, 97, 0.18);
+  box-shadow: none;
+}
+
+.nav-button label {
+  color: #0c7a61;
+}
+
+.nav-button:hover {
+  background-image: none;
+  background-color: rgba(12, 122, 97, 0.16);
+}
+
+frame.panel-frame {
+  padding: 8px;
+  border-radius: 18px;
+  border: 1px solid rgba(84, 62, 34, 0.16);
+  background-color: rgba(255, 252, 247, 0.90);
+  box-shadow: 0 14px 30px rgba(86, 67, 39, 0.10);
+}
+
+frame.panel-frame > label {
+  margin-left: 12px;
+  margin-bottom: 4px;
+  color: #2b2115;
+  font-weight: 800;
+}
+
+notebook {
+  border: 0;
+  background-color: transparent;
+}
+
+notebook tab {
+  min-height: 34px;
+  padding: 7px 12px;
+  border-radius: 12px 12px 0 0;
+  background-color: rgba(255, 252, 247, 0.68);
+  border: 1px solid rgba(84, 62, 34, 0.12);
+}
+
+notebook tab:checked {
+  background-color: #fffaf3;
+  border-color: rgba(12, 122, 97, 0.22);
+}
+
+notebook tab label {
+  color: #705d43;
+  font-weight: 700;
+}
+
+entry,
+textview,
+list,
+combobox,
+scrolledwindow {
+  border-radius: 14px;
+  border: 1px solid rgba(84, 62, 34, 0.14);
+  background-color: #fffaf3;
+  color: #2b2115;
+}
+
+entry {
+  padding: 9px 12px;
+}
+
+textview text,
+textview.view text {
+  padding: 12px;
+  background-color: #fffaf3;
+  color: #2b2115;
+}
+
+textview.view {
+  background-color: #fffaf3;
+  color: #2b2115;
+}
+
+checkbutton label,
+label {
+  color: #2b2115;
+}
+
+flowboxchild {
+  border-radius: 999px;
+}
+
+paned separator {
+  background-color: rgba(84, 62, 34, 0.14);
+}
+"""
+
+
 def build_report() -> dict:
     results = [agent.run() for agent in build_agents()]
     return generate_report(results)
@@ -52,9 +242,10 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
 
     def __init__(self, app: Gtk.Application):
         super().__init__(application=app, title="System Coach and Maintenance Manager")
+        self._install_theme()
         self.set_default_size(self.DEFAULT_WINDOW_WIDTH, self.DEFAULT_WINDOW_HEIGHT)
         self.set_resizable(True)
-        self.set_border_width(16)
+        self.set_border_width(0)
 
         self.current_report: dict | None = None
         self.current_map: dict | None = None
@@ -72,6 +263,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self.pop_cosmic_result: dict | None = None
 
         outer_scroll = Gtk.ScrolledWindow()
+        self._add_class(outer_scroll, "app-scroll")
         outer_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         outer_scroll.set_min_content_width(self.MIN_VIEWPORT_WIDTH)
         outer_scroll.set_min_content_height(self.MIN_VIEWPORT_HEIGHT)
@@ -80,15 +272,23 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self.add(outer_scroll)
 
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        self._add_class(root, "app-root")
         root.set_hexpand(True)
         root.set_vexpand(True)
         outer_scroll.add(root)
 
         header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self._add_class(header, "hero-panel")
         root.pack_start(header, False, False, 0)
+
+        eyebrow = Gtk.Label(label="SYSTEM COACH AND MAINTENANCE MANAGER")
+        self._add_class(eyebrow, "eyebrow-label")
+        eyebrow.set_xalign(0)
+        header.pack_start(eyebrow, False, False, 0)
 
         title = Gtk.Label()
         title.set_markup("<span size='24000' weight='bold'>System Coach and Maintenance Manager</span>")
+        self._add_class(title, "hero-title")
         title.set_xalign(0)
         header.pack_start(title, False, False, 0)
 
@@ -98,6 +298,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
                 "and selected folders without sending data anywhere else."
             )
         )
+        self._add_class(subtitle, "hero-subtitle")
         subtitle.set_xalign(0)
         subtitle.set_line_wrap(True)
         header.pack_start(subtitle, False, False, 0)
@@ -110,14 +311,17 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         action_row.add(self.review_button)
 
         self.map_button = Gtk.Button(label="Scan Selected Roots")
+        self._add_class(self.map_button, "secondary-button")
         self.map_button.connect("clicked", self.on_run_map)
         action_row.add(self.map_button)
 
         self.maintenance_button = Gtk.Button(label="Run Maintenance Diagnostics")
+        self._add_class(self.maintenance_button, "secondary-button")
         self.maintenance_button.connect("clicked", self.on_run_maintenance)
         action_row.add(self.maintenance_button)
 
         self.share_button = Gtk.Button(label="Copy Share Summary")
+        self._add_class(self.share_button, "secondary-button")
         self.share_button.connect("clicked", self.on_copy_summary)
         action_row.add(self.share_button)
 
@@ -132,20 +336,24 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             ("Model Providers", 9),
         ]:
             button = Gtk.Button(label=label)
+            self._add_class(button, "nav-button")
             button.connect("clicked", self.on_nav_clicked, page_index)
             nav_row.add(button)
 
         self.execute_nav_button = Gtk.Button(label="Execute Fixes")
+        self._add_class(self.execute_nav_button, "secondary-button")
         self.execute_nav_button.set_tooltip_text("Open the Approval Queue and run the selected fix when its contract is enabled.")
         self.execute_nav_button.connect("clicked", self.on_execute_selected_action)
         nav_row.add(self.execute_nav_button)
 
         self.status_label = Gtk.Label(label="Ready. Run a review to learn the environment.")
+        self._add_class(self.status_label, "status-strip")
         self.status_label.set_xalign(0)
         self.status_label.set_line_wrap(True)
         root.pack_start(self.status_label, False, False, 0)
 
         self.engine_label = Gtk.Label(label="Checking local AI engine...")
+        self._add_class(self.engine_label, "engine-strip")
         self.engine_label.set_xalign(0)
         self.engine_label.set_line_wrap(True)
         root.pack_start(self.engine_label, False, False, 0)
@@ -232,8 +440,23 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self.on_refresh_history(None)
         self._refresh_approval_queue()
 
+    def _install_theme(self) -> None:
+        provider = Gtk.CssProvider()
+        provider.load_from_data(DESKTOP_CSS)
+        screen = Gdk.Screen.get_default()
+        if screen is not None:
+            Gtk.StyleContext.add_provider_for_screen(
+                screen,
+                provider,
+                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+            )
+
+    def _add_class(self, widget: Gtk.Widget, class_name: str) -> None:
+        widget.get_style_context().add_class(class_name)
+
     def _make_text_view(self) -> Gtk.TextView:
         view = Gtk.TextView()
+        self._add_class(view, "report-view")
         view.set_editable(False)
         view.set_cursor_visible(False)
         view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
@@ -253,6 +476,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
 
     def _frame(self, title: str, widget: Gtk.Widget) -> Gtk.Frame:
         frame = Gtk.Frame(label=title)
+        self._add_class(frame, "panel-frame")
         scroll = Gtk.ScrolledWindow()
         scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         scroll.set_hexpand(True)
