@@ -128,22 +128,6 @@ button:disabled {
   background-image: linear-gradient(135deg, #cf6b38, #aa4c20);
 }
 
-.nav-button {
-  background-image: none;
-  background-color: rgba(12, 122, 97, 0.10);
-  border: 1px solid rgba(12, 122, 97, 0.18);
-  box-shadow: none;
-}
-
-.nav-button label {
-  color: #0c7a61;
-}
-
-.nav-button:hover {
-  background-image: none;
-  background-color: rgba(12, 122, 97, 0.16);
-}
-
 frame.panel-frame {
   padding: 8px;
   border-radius: 18px;
@@ -324,27 +308,6 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self._add_class(self.share_button, "secondary-button")
         self.share_button.connect("clicked", self.on_copy_summary)
         action_row.add(self.share_button)
-
-        nav_row = self._make_wrapping_flow()
-        root.pack_start(nav_row, False, False, 0)
-
-        for label, page_index in [
-            ("Pop/COSMIC Agent", 4),
-            ("Request Desk", 5),
-            ("Approval Queue", 6),
-            ("Ask The Coach", 8),
-            ("Model Providers", 9),
-        ]:
-            button = Gtk.Button(label=label)
-            self._add_class(button, "nav-button")
-            button.connect("clicked", self.on_nav_clicked, page_index)
-            nav_row.add(button)
-
-        self.execute_nav_button = Gtk.Button(label="Execute Fixes")
-        self._add_class(self.execute_nav_button, "secondary-button")
-        self.execute_nav_button.set_tooltip_text("Open the Approval Queue and run the selected fix when its contract is enabled.")
-        self.execute_nav_button.connect("clicked", self.on_execute_selected_action)
-        nav_row.add(self.execute_nav_button)
 
         self.status_label = Gtk.Label(label="Ready. Run a review to learn the environment.")
         self._add_class(self.status_label, "status-strip")
@@ -1246,8 +1209,6 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
     def _set_execution_buttons_sensitive(self, sensitive: bool) -> None:
         if hasattr(self, "execute_action_button"):
             self.execute_action_button.set_sensitive(sensitive and bool(self.queued_plans))
-        if hasattr(self, "execute_nav_button"):
-            self.execute_nav_button.set_sensitive(sensitive and bool(self.queued_plans))
         if hasattr(self, "execute_request_button"):
             self.execute_request_button.set_sensitive(sensitive and self.current_request_plan is not None)
 
@@ -1435,9 +1396,6 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
                 )
 
         self._show_action_dialog("Maintenance Findings", "\n".join(sections).strip())
-
-    def on_nav_clicked(self, _button: Gtk.Button, page_index: int) -> None:
-        self.notebook.set_current_page(page_index)
 
     def on_review_selected_action(self, _button: Gtk.Button | None) -> None:
         plan = self._selected_queued_plan()
