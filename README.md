@@ -1,5 +1,7 @@
 # System Coach and Maintenance Manager
 
+[![CI](https://github.com/Adamgdwn/system-coach-maintenance-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/Adamgdwn/system-coach-maintenance-manager/actions/workflows/ci.yml)
+
 ## Purpose
 
 System Coach and Maintenance Manager is a local-first desktop app that helps people understand and maintain the development environment already sitting in front of them. It inspects the current machine with small local probe agents, explains what installed tools do, highlights common stack patterns, runs read-only maintenance diagnostics, and presents the results in a guided native GUI built for new to intermediate coders and system owners.
@@ -15,7 +17,8 @@ If you have ever asked "What is actually installed here?" or "Why do these tools
 - Owner: Adam Goodwin
 - Technical lead: codex session
 - Risk tier: medium
-- Production status: local desktop app ready to share and explore
+- Production status: public alpha, local desktop app ready to share and explore
+- License: MIT
 
 ## Public Use At A Glance
 
@@ -26,6 +29,20 @@ This app cannot silently repair your computer, execute model-invented commands, 
 Before opening a GitHub issue, read `SUPPORT.md` and `docs/privacy-and-safety.md`. Do not paste raw local history, full logs, API keys, tokens, hostnames, private paths, or screenshots with personal information. Use the GitHub issue templates so reports preserve the privacy and safety boundaries.
 
 GitHub pull requests run CI for governance preflight, unit tests, compile checks, browser JavaScript syntax, secret-pattern scanning, and a browser API smoke test.
+
+## Screenshots
+
+Screenshots below are sanitized examples from browser fallback mode. Your machine profile, available commands, model status, desktop session, and maintenance findings will differ.
+
+![Browser overview](docs/assets/screenshots/browser-overview.png)
+
+![Capability profile](docs/assets/screenshots/capability-profile.png)
+
+![Guarded request plan](docs/assets/screenshots/guarded-request-plan.png)
+
+![Model provider setup](docs/assets/screenshots/model-provider-setup.png)
+
+![Pop!_OS + COSMIC agent](docs/assets/screenshots/pop-cosmic-agent.png)
 
 ## Quick Start
 
@@ -78,6 +95,14 @@ First run for public users:
 4. Run Local Review.
 5. Run Maintenance Diagnostics.
 6. Review every Request Desk or Approval Queue plan before executing anything.
+
+Alpha caveats:
+
+- Treat this as supervised local maintenance software, not an unattended repair bot.
+- Review command previews, confirmation phrases, fingerprints, rollback notes, and verification steps before approving an action.
+- Do not paste raw local history, full logs, secrets, private paths, hostnames, or personal screenshots into public issues.
+- External model use is bring-your-own-key only; raw API keys are not accepted or stored by the app.
+- Pop!_OS/COSMIC behavior is strongest on matching systems and falls back to advisory guidance elsewhere.
 
 Install the desktop entry:
 
@@ -147,6 +172,7 @@ python3 -m compileall src tests
 - `docs/setup-linux.md`
 - `docs/setup-windows-browser.md`
 - `docs/release-checklist.md`
+- `docs/releases/v0.1.0-alpha.md`
 - `docs/CHANGELOG.md`
 - `docs/risks/risk-register.md`
 - `docs/adrs/0001-local-web-gui.md`

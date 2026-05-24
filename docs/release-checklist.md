@@ -22,6 +22,8 @@ Use this checklist before sharing a build with another machine or user.
 - Confirm `README.md` includes what the app can and cannot do.
 - Confirm `LICENSE`, `CONTRIBUTING.md`, `SECURITY.md`, `SUPPORT.md`, and GitHub issue/PR templates are present and match the intended public-sharing model.
 - Confirm `.github/workflows/ci.yml` is present and still runs governance, tests, compile checks, browser syntax, secret-pattern scanning, and browser API smoke.
+- Confirm release notes exist for the published tag and repeat alpha caveats, privacy guidance, model-provider boundaries, and guarded-execution expectations.
+- Confirm README screenshots are sanitized and do not expose local usernames, hostnames, private paths, raw logs, or machine-specific secrets.
 - Confirm public users are told they need local Ollama, their own cloud-provider key, or acceptance of deterministic fallback.
 - Confirm `docs/privacy-and-safety.md` describes local collection, optional external model paths, research controls, local history, and secret handling.
 - Confirm `docs/public-release-guide.md` gives first-run browser fallback instructions.

@@ -9,7 +9,7 @@ description = "Local-first system coaching, maintenance diagnostics, and trouble
 readme = "README.md"
 requires-python = ">=3.12"
 authors = [{ name = "Adam Goodwin" }]
-license = { text = "Proprietary" }
+license = { text = "MIT" }
 dependencies = []
 
 [project.scripts]

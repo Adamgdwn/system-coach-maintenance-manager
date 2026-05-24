@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-- Added GitHub public-support materials: issue templates, pull request checklist, CI validation workflow, support guidance, security reporting guidance, contributing rules, and an explicit all-rights-reserved license notice.
+- Prepared the GitHub landing experience with README screenshots, MIT licensing, alpha caveats, release notes for `v0.1.0-alpha`, and release-readiness checks for sanitized public assets.
+- Added GitHub public-support materials: issue templates, pull request checklist, CI validation workflow, support guidance, security reporting guidance, contributing rules, and explicit license notice.
 - Completed roadmap Chunk 20 by adding public release guidance, privacy and safety documentation, a public walkthrough, expanded release checks, public-user README framing, and risk-register coverage for cloud-provider secrets and unsupported-machine distribution.
 - Completed roadmap Chunk 19 by adding model provider setup and health checks for local Ollama, bring-your-own-key cloud readiness, and deterministic fallback, with redacted local config storage and tests proving raw API keys are neither saved nor returned.
 - Completed roadmap Chunk 18 by adding a portable system capability profile, `/api/capabilities`, browser/desktop capability summaries, local-storage guidance, and mocked Linux/Windows discovery tests for Pop/COSMIC and non-Pop public installs.
