@@ -681,9 +681,17 @@ async function researchPopCosmic() {
   });
   currentPopCosmicResearch = await response.json();
   const records = (currentPopCosmicResearch.records || [])
-    .map((record) => `<li>[${escapeHtml(record.trust_level)}] ${escapeHtml(record.title)}</li>`)
+    .map((record) => `<li>[${escapeHtml(record.record_mode || record.trust_level)}] ${escapeHtml(record.title)}</li>`)
     .join("");
-  popCosmicAnalysis.innerHTML = `<article class="stack-card"><h3>Research records</h3><p>${escapeHtml(currentPopCosmicResearch.privacy)}</p><ul class="text-list compact-list">${records}</ul></article>`;
+  popCosmicAnalysis.innerHTML = `
+    <article class="stack-card">
+      <h3>Research records</h3>
+      <p>Mode: ${escapeHtml(currentPopCosmicResearch.research_mode || "unknown")}</p>
+      <p>${escapeHtml(currentPopCosmicResearch.governance?.reason || "")}</p>
+      <p>${escapeHtml(currentPopCosmicResearch.privacy)}</p>
+      <ul class="text-list compact-list">${records}</ul>
+    </article>
+  `;
   setStatus("Pop!_OS/COSMIC research records prepared.");
 }
 

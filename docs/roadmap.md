@@ -175,7 +175,7 @@ Status: completed.
 
 ## Chunk 15: Pop/COSMIC Research Governance Enforcement
 
-Status: planned.
+Status: completed.
 
 - Make `/api/pop-cosmic/research` obey `project-control.yaml` instead of request-body overrides.
 - Keep live web research disabled unless project controls explicitly enable it.

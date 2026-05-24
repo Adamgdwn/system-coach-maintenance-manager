@@ -46,7 +46,9 @@ Scan output is capped and redacted for user paths, hostnames, and obvious tokens
 
 ## Research
 
-Web research is disabled by default. The initial research layer records trusted official sources without fetching remote page text unless research is explicitly enabled. Safe research queries are built from the user symptom and sanitized profile facts, not raw logs.
+Web research is disabled by default. The initial research layer records trusted official sources without fetching remote page text unless research is explicitly enabled by project controls and the current request opts in. Safe research queries are built from the user symptom and sanitized profile facts, not raw logs.
+
+The local API treats `project-control.yaml` as the source of truth for live Pop/COSMIC web research. Browser or API payloads cannot turn live research on when `pop_cosmic_agent.web_research_enabled` is `false`. Research responses include the effective mode, governance reason, and whether records are local/manual notes, official-source metadata, live web search, or live web fetch records.
 
 Highest-trust sources are official System76 docs, System76 blog/release notes, and official Pop/COSMIC GitHub sources. Community sources may be useful later, but should not justify risky fixes by themselves.
 

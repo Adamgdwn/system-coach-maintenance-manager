@@ -52,6 +52,7 @@ def _source_record(
     relevant_evidence: list[str] | None = None,
     risk_notes: list[str] | None = None,
     applies_to: dict | None = None,
+    record_mode: str = "official-metadata",
 ) -> dict:
     return {
         "source_id": source_id,
@@ -65,6 +66,7 @@ def _source_record(
         "relevant_evidence": relevant_evidence or [],
         "risk_notes": risk_notes or [],
         "applies_to": applies_to or {"pop_version": "unknown", "cosmic_version": "unknown", "hardware": "unknown"},
+        "record_mode": record_mode,
     }
 
 
@@ -98,6 +100,7 @@ class OfficialSystem76Provider(ResearchProvider):
                         "Treat package repair, firmware, refresh, and upgrade instructions as approval-required actions.",
                     ],
                     applies_to={"pop_version": "24.04|22.04|unknown", "cosmic_version": "Epoch 1|unknown", "hardware": "unknown"},
+                    record_mode="official-source-metadata",
                 )
             )
         return records
@@ -111,6 +114,7 @@ class OfficialSystem76Provider(ResearchProvider):
                 url=url,
                 trust_level="official",
                 summary="Web research is disabled. Enable it before fetching source text.",
+                record_mode="local-only-disabled-fetch",
             )
         if not _domain_allowed(url):
             raise ValueError("URL domain is not allowed for Pop/COSMIC research.")
@@ -123,6 +127,7 @@ class OfficialSystem76Provider(ResearchProvider):
             url=url,
             trust_level="official",
             summary=sanitize_output(text, max_chars=2400),
+            record_mode="live-web-fetch",
         )
 
 
@@ -153,6 +158,7 @@ class GitHubCosmicProvider(ResearchProvider):
                     summary=item.get("title", ""),
                     relevant_evidence=[item.get("state", "unknown")],
                     applies_to={"pop_version": "unknown", "cosmic_version": "Epoch 1|unknown", "hardware": "unknown"},
+                    record_mode="live-web-search",
                 )
             )
         return records
@@ -171,6 +177,7 @@ class GitHubCosmicProvider(ResearchProvider):
             url=url,
             trust_level="maintainer",
             summary=sanitize_output(text, max_chars=2400),
+            record_mode="live-web-fetch",
         )
 
 
@@ -190,6 +197,7 @@ class ManualSourceProvider(ResearchProvider):
                 trust_level="unknown",
                 summary=self.notes,
                 relevant_evidence=[query],
+                record_mode="manual-local",
             )
         ]
 
@@ -216,23 +224,34 @@ def research_pop_cosmic_issue(
     include_github: bool = False,
     manual_notes: str = "",
     max_results: int = 8,
+    governance: dict | None = None,
 ) -> dict:
     query = safe_research_query(symptom, profile)
+    live_web_enabled = bool(enabled)
     providers: list[ResearchProvider] = [
-        OfficialSystem76Provider(enabled=enabled),
+        OfficialSystem76Provider(enabled=live_web_enabled),
         ManualSourceProvider(manual_notes),
     ]
     if include_github:
-        providers.append(GitHubCosmicProvider(enabled=enabled))
+        providers.append(GitHubCosmicProvider(enabled=live_web_enabled))
     records: list[dict] = []
     for provider in providers:
         records.extend(provider.search(query, max_results=max_results))
         if len(records) >= max_results:
             break
+    if live_web_enabled and include_github:
+        research_mode = "live-web-search"
+    elif manual_notes.strip():
+        research_mode = "local-manual-and-official-metadata"
+    else:
+        research_mode = "official-source-metadata-only"
     return {
         "generated_at": _now(),
-        "enabled": enabled,
+        "enabled": live_web_enabled,
+        "live_web_enabled": live_web_enabled,
+        "research_mode": research_mode,
         "query": query,
         "records": records[:max_results],
+        "governance": governance or {},
         "privacy": "Raw local logs are not sent to research providers; only the sanitized symptom/profile query is used.",
     }

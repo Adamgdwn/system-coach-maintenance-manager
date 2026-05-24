@@ -21,6 +21,7 @@ from .maintenance_history import record_action_result
 from .maintenance_reporting import generate_maintenance_report
 from .pop_cosmic_actions import prepare_pop_cosmic_action, prepare_verification_plan
 from .pop_cosmic_brain import analyze_pop_cosmic_issue
+from .pop_cosmic_controls import load_pop_cosmic_controls
 from .pop_cosmic_deep_scan import run_pop_cosmic_deep_scan
 from .pop_cosmic_knowledge import load_relevant_lessons, load_relevant_research, save_lesson, save_research_records, make_lesson
 from .pop_cosmic_profile import detect_pop_cosmic_environment
@@ -194,12 +195,35 @@ class SystemCoachHandler(SimpleHTTPRequestHandler):
         if self.path == "/api/pop-cosmic/research":
             symptom = str(payload.get("symptom", ""))
             profile = payload.get("profile") if isinstance(payload.get("profile"), dict) else detect_pop_cosmic_environment()
+            controls = load_pop_cosmic_controls()
+            requested_live_web = bool(payload.get("enabled", False))
+            effective_live_web = bool(controls.get("web_research_enabled")) and requested_live_web
+            governance = {
+                "source": controls.get("source"),
+                "web_research_enabled": bool(controls.get("web_research_enabled")),
+                "requested_live_web": requested_live_web,
+                "effective_live_web": effective_live_web,
+                "allowed_domains": controls.get("allowed_domains", []),
+                "reason": controls.get("governance_reason", ""),
+            }
+            if requested_live_web and not effective_live_web:
+                governance["reason"] = (
+                    "Live Pop/COSMIC web research was requested, but project controls keep it disabled. "
+                    "Returning local/manual records and official source metadata only."
+                )
+            elif controls.get("web_research_enabled") and not requested_live_web:
+                governance["reason"] = (
+                    "Project controls allow live Pop/COSMIC web research, but this request did not opt in. "
+                    "Returning local/manual records and official source metadata only."
+                )
             research = research_pop_cosmic_issue(
                 symptom,
                 profile,
-                enabled=bool(payload.get("enabled", False)),
-                include_github=bool(payload.get("include_github", False)),
+                enabled=effective_live_web,
+                include_github=bool(payload.get("include_github", False)) and effective_live_web,
                 manual_notes=str(payload.get("manual_notes", "")),
+                max_results=int(controls.get("max_results_per_query", 8)),
+                governance=governance,
             )
             save_research_records(research.get("records", []))
             self._send_json(research)
