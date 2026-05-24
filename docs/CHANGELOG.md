@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Shortened guarded action confirmation text to the exact all-caps phrase `APPROVE` while preserving server-side plan lookup and exact confirmation enforcement.
 - Tightened the native GTK header by reducing the hero banner height and combining the status and local-AI state strips into one row.
 - Removed the duplicate native GTK top navigation row so the notebook tabs are the single page navigation path and the main panels have more vertical room.
 - Refreshed the native GTK desktop shell with the warmer public-alpha visual treatment used in the browser screenshots: cream surfaces, green and copper action buttons, styled panels, softer status strips, and themed text areas.

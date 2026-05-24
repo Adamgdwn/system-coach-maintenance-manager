@@ -269,7 +269,7 @@ def build_action_contract(plan: dict, project_control_path: Path | None = None) 
         "eligible_for_guarded_execution": assessment["eligible"],
         "eligibility_notes": assessment["reasons"],
         "approval_required": True,
-        "confirmation_phrase": f"APPROVE {action_id}",
+        "confirmation_phrase": "APPROVE",
         "execution_enabled": gate["allowed"],
         "execution_mode": assessment["execution_mode"],
         "elevation_prompt": _elevation_prompt() if assessment["execution_mode"] == "elevated" else None,

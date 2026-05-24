@@ -21,7 +21,7 @@ Each prepared maintenance or Request Desk plan may include `action_contract`:
 - `eligible_for_guarded_execution`: whether the plan shape is narrow enough for guarded execution
 - `eligibility_notes`: reasons the plan is not eligible
 - `approval_required`: always `true`
-- `confirmation_phrase`: exact phrase preserved for audit and future stronger confirmation modes
+- `confirmation_phrase`: exact phrase required before execution; currently `APPROVE`
 - `fingerprint`: stable fingerprint of the executable preview
 - `execution_enabled`: `true` only when the plan passes governance, autonomy, catalog, and command checks
 - `execution_mode`: `user` for current-user execution or `elevated` for administrator/root execution
@@ -48,7 +48,7 @@ The local API execution shape is:
 ```json
 {
   "plan_id": "plan-...",
-  "confirmation_text": "APPROVE action-..."
+  "confirmation_text": "APPROVE"
 }
 ```
 

@@ -42,6 +42,7 @@ class MaintenanceActionsTests(unittest.TestCase):
         contract = build_action_contract(plan, project_control_path=control_path)
         result = execute_guarded_action(contract, contract["confirmation_phrase"])
 
+        self.assertEqual(contract["confirmation_phrase"], "APPROVE")
         self.assertTrue(contract["eligible_for_guarded_execution"])
         self.assertFalse(contract["execution_enabled"])
         self.assertEqual(result["status"], "blocked")
