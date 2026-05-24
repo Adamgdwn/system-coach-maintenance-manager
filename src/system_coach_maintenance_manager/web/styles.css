@@ -296,7 +296,9 @@ main {
   font-weight: 700;
 }
 
-textarea {
+textarea,
+input,
+select {
   width: 100%;
   border-radius: 18px;
   border: 1px solid var(--line);
@@ -304,7 +306,14 @@ textarea {
   padding: 14px;
   font: inherit;
   color: var(--text);
+}
+
+textarea {
   resize: vertical;
+}
+
+select {
+  width: auto;
 }
 
 .scan-actions {

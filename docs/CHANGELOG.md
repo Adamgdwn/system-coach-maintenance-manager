@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added the Pop!_OS + COSMIC Agent MVP with profile detection, deep scans, source-aware research records, local model analysis, local lessons, guarded action plans, GTK/browser controls, verification scans, Request Desk routing, tests, and documentation.
 - Recorded the Chunk 0 baseline for the Pop!_OS/COSMIC agent work: governance preflight passed, 62 tests passed, and `compileall` passed before broader agent changes.
 - Enforced guarded-action confirmation phrases in the backend runner, added a GTK execution confirmation modal, and kept browser execution gated by the confirmation field.
 - Made Gemma 4 model selection prefer `gemma4:latest` while accepting any available `gemma4:*` tag before falling back to non-Gemma models.

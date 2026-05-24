@@ -73,6 +73,10 @@ The current low-risk catalog is:
 - failed service evidence
 - critical log evidence
 - network and DNS evidence
+- Pop!_OS/COSMIC deep scan and evidence collection
+- Pop!_OS/COSMIC display evidence
+- Pop!_OS/COSMIC update/package visibility checks
+- opening COSMIC Settings or COSMIC Store
 
 The current elevated catalog is:
 
@@ -80,6 +84,8 @@ The current elevated catalog is:
 - failed-service and log follow-up plans
 - network/DNS plans that require administrator changes
 - startup app/service plans that require administrator changes
+
+Pop!_OS/COSMIC package repair, apt update/full-upgrade, firmware scheduling/install, release upgrade, OS refresh, package purge, broad autoremove, broad config deletion, and guessed service restarts remain blocked unless a future exact high-risk catalog entry implements the pre-check, command, rollback, and verification path.
 
 ## Execution Gate
 

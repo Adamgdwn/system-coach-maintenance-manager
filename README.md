@@ -82,6 +82,7 @@ python3 -m compileall src tests
 - Read-only maintenance diagnostics inspect system health signals such as disk pressure, memory, CPU load, failed services, recent critical logs, network basics, and package-manager health across Linux and Windows where platform tools are available.
 - Maintenance plans are prepared as approval-required previews with commands, expected effects, risk, reversibility, and privilege flags.
 - The Request Desk turns specific requests into platform-aware approval-required plans for cursor/pointer size, display settings, audio routing, network/DNS issues, package/update repair, Docker cleanup review, startup app review, and slow-computer triage.
+- The Pop!_OS + COSMIC Agent adds a dedicated scan, concern, research-record, local-model analysis, fix-plan, execute, verify, and learn flow for COSMIC desktop issues.
 - The Approval Queue makes prepared plans scannable before execution.
 - Approved-action contracts are attached to prepared plans so command previews, confirmation phrases, timeouts, output capture policy, post-checks, and rollback notes are visible.
 - Guarded action execution runs exact catalogued commands only after user approval. Elevated plans can request administrator/root approval through Linux `pkexec`/Polkit or Windows UAC.
@@ -110,6 +111,7 @@ python3 -m compileall src tests
 - `docs/deployment-guide.md`
 - `docs/runbook.md`
 - `docs/maintenance-manager-plan.md`
+- `docs/pop-cosmic-agent.md`
 - `docs/action-runner-contract.md`
 - `docs/setup-linux.md`
 - `docs/setup-windows-browser.md`

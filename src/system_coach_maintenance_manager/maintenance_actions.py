@@ -27,6 +27,10 @@ LOW_RISK_FAMILIES = {
     "failed-services",
     "journal-errors",
     "network-basics",
+    "pop-cosmic-deep-scan",
+    "pop-cosmic-display-evidence",
+    "pop-cosmic-open-app",
+    "pop-cosmic-update-check",
 }
 ELEVATED_FAMILIES = {
     "failed-services",
@@ -35,20 +39,29 @@ ELEVATED_FAMILIES = {
     "network-dns",
     "package-manager-health",
     "package-updates",
+    "pop-cosmic-apt-update",
+    "pop-cosmic-package-repair",
+    "pop-cosmic-firmware-review",
     "startup-apps",
 }
 ALLOWED_EXECUTABLES = {
     "apt",
+    "apt-cache",
     "apt-get",
+    "apt-mark",
     "brightnessctl",
     "cat",
     "choco",
     "cmd",
     "cosmic-randr",
     "cosmic-settings",
+    "cosmic-store",
     "dnf",
     "dpkg",
+    "dpkg-query",
     "eventvwr.msc",
+    "flatpak",
+    "fwupdmgr",
     "gsettings",
     "ip",
     "ipconfig",
@@ -58,12 +71,16 @@ ALLOWED_EXECUTABLES = {
     "kscreen-doctor",
     "lspci",
     "lsusb",
+    "pgrep",
+    "pop-upgrade",
     "pactl",
     "pacman",
     "powershell",
     "pwsh",
     "resolvectl",
     "route",
+    "stat",
+    "system76-firmware-cli",
     "systemctl",
     "wevtutil",
     "winget",
@@ -198,6 +215,23 @@ def _command_allowed(command: str, family: str, *, requires_privilege: bool = Fa
     if executable in {"gsettings", "xfconf-query"}:
         if not any(verb in parts for verb in READ_ONLY_VERBS | MUTATING_VERBS) and "-s" not in parts:
             return False, f"{executable} command does not declare an allowed read or set operation"
+    if family.startswith("pop-cosmic"):
+        joined = " ".join(parts).lower()
+        blocked_terms = (" full-upgrade", " install", " remove", " purge", " autoremove", " release upgrade", " recovery upgrade")
+        if any(term in f" {joined}" for term in blocked_terms):
+            return False, "Pop/COSMIC guarded actions block package mutation, release upgrades, purge, and autoremove by default"
+        if executable in {"apt", "apt-get"} and not any(term in parts for term in {"check", "list"}):
+            return False, "Pop/COSMIC apt commands are limited to read-only check/list operations in this catalog"
+        if executable == "apt-cache" and "policy" not in parts:
+            return False, "Pop/COSMIC apt-cache commands are limited to policy checks"
+        if executable == "apt-mark" and "showhold" not in parts:
+            return False, "Pop/COSMIC apt-mark commands are limited to showhold"
+        if executable == "flatpak" and not (("remote-ls" in parts and "--updates" in parts) or "remotes" in parts or "list" in parts):
+            return False, "Pop/COSMIC flatpak commands are limited to listing operations"
+        if executable == "fwupdmgr" and "get-updates" not in parts:
+            return False, "Pop/COSMIC firmware commands are limited to get-updates"
+        if executable == "pop-upgrade" and "status" not in parts:
+            return False, "Pop/COSMIC pop-upgrade commands are limited to status checks"
     if executable in {"cmd", "powershell", "pwsh"} and not requires_privilege and family not in {"cursor-size", "display-dock", "journal-errors", "network-basics"}:
         return False, f"{executable} execution is only enabled for guarded settings or read-only evidence plans"
     return True, None

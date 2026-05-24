@@ -21,6 +21,11 @@ from .maintenance_actions import execute_guarded_action
 from .maintenance_history import format_history, load_history, record_learning_note, record_maintenance_report, record_request_plan
 from .maintenance_history import record_action_result
 from .maintenance_reporting import generate_maintenance_report
+from .pop_cosmic_actions import prepare_pop_cosmic_action, prepare_verification_plan
+from .pop_cosmic_brain import analyze_pop_cosmic_issue
+from .pop_cosmic_deep_scan import run_pop_cosmic_deep_scan
+from .pop_cosmic_knowledge import load_relevant_lessons, load_relevant_research, make_lesson, save_lesson, save_research_records
+from .pop_cosmic_research import research_pop_cosmic_issue
 from .reporting import generate_report
 from .request_evidence import collect_request_evidence
 from .request_plans import format_request_plan, prepare_request_plan, review_request_intake
@@ -58,6 +63,11 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self.queued_plans: list[dict] = []
         self.request_context: list[str] = []
         self.latest_request_reasoning: dict | None = None
+        self.pop_cosmic_scan: dict | None = None
+        self.pop_cosmic_research: dict | None = None
+        self.pop_cosmic_analysis: dict | None = None
+        self.pop_cosmic_plan: dict | None = None
+        self.pop_cosmic_result: dict | None = None
 
         outer_scroll = Gtk.ScrolledWindow()
         outer_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
@@ -113,9 +123,10 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         root.pack_start(nav_row, False, False, 0)
 
         for label, page_index in [
-            ("Request Desk", 4),
-            ("Approval Queue", 5),
-            ("Ask The Coach", 7),
+            ("Pop/COSMIC Agent", 4),
+            ("Request Desk", 5),
+            ("Approval Queue", 6),
+            ("Ask The Coach", 8),
         ]:
             button = Gtk.Button(label=label)
             button.connect("clicked", self.on_nav_clicked, page_index)
@@ -174,6 +185,11 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self.maintenance_page.set_border_width(6)
         self.notebook.append_page(self.maintenance_page, Gtk.Label(label="Maintenance"))
         self._build_maintenance_page()
+
+        self.pop_cosmic_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        self.pop_cosmic_page.set_border_width(6)
+        self.notebook.append_page(self.pop_cosmic_page, Gtk.Label(label="Pop!_OS + COSMIC"))
+        self._build_pop_cosmic_page()
 
         self.request_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         self.request_page.set_border_width(6)
@@ -364,6 +380,55 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             True,
             0,
         )
+
+    def _build_pop_cosmic_page(self) -> None:
+        intro = Gtk.Label(
+            label=(
+                "Guided Pop!_OS + COSMIC agent: scan local evidence, optionally research trusted sources, "
+                "ask the local model ladder, build one exact fix plan, execute only after approval, then verify and learn."
+            )
+        )
+        intro.set_xalign(0)
+        intro.set_line_wrap(True)
+        self.pop_cosmic_page.pack_start(intro, False, False, 0)
+
+        self.pop_cosmic_concern_view = Gtk.TextView()
+        self.pop_cosmic_concern_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+        concern_scroll = Gtk.ScrolledWindow()
+        concern_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        concern_scroll.set_min_content_height(90)
+        concern_scroll.add(self.pop_cosmic_concern_view)
+        self.pop_cosmic_page.pack_start(self._frame("Concern", concern_scroll), False, False, 0)
+
+        controls = self._make_wrapping_flow()
+        self.pop_cosmic_page.pack_start(controls, False, False, 0)
+
+        self.pop_cosmic_scope = Gtk.ComboBoxText()
+        for scope in ("standard", "display", "updates", "full"):
+            self.pop_cosmic_scope.append_text(scope)
+        self.pop_cosmic_scope.set_active(0)
+        controls.add(self.pop_cosmic_scope)
+
+        for label, handler in [
+            ("Run Deep Scan", self.on_pop_cosmic_scan),
+            ("Research Current Issue", self.on_pop_cosmic_research),
+            ("Ask Local Model", self.on_pop_cosmic_analyze),
+            ("Build Fix Plan", self.on_pop_cosmic_plan),
+            ("Execute Approved Step", self.on_pop_cosmic_execute),
+            ("Verify Fix", self.on_pop_cosmic_verify),
+        ]:
+            button = Gtk.Button(label=label)
+            button.connect("clicked", handler)
+            controls.add(button)
+
+        self.pop_cosmic_profile_view = self._make_text_view()
+        self.pop_cosmic_page.pack_start(self._frame("Environment And Scan", self.pop_cosmic_profile_view), True, True, 0)
+
+        self.pop_cosmic_analysis_view = self._make_text_view()
+        self.pop_cosmic_page.pack_start(self._frame("Analysis, Research, And Actions", self.pop_cosmic_analysis_view), True, True, 0)
+
+        self.pop_cosmic_action_view = self._make_text_view()
+        self.pop_cosmic_page.pack_start(self._frame("Action Log", self.pop_cosmic_action_view), True, True, 0)
 
     def _build_request_page(self) -> None:
         intro = Gtk.Label(
@@ -1170,6 +1235,18 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
     def _apply_execution_result(self, plan: dict, result: dict, analysis: dict | None) -> bool:
         contract = plan.get("action_contract", {})
         followup_plan = None
+        if str(plan.get("family", "")).startswith("pop-cosmic"):
+            self.pop_cosmic_result = result
+            self._append_text(
+                self.pop_cosmic_action_view,
+                "\n".join(
+                    [
+                        f"Action status: {result.get('status')}",
+                        f"Action id: {result.get('action_id')}",
+                        result.get("output") or result.get("error") or "No output.",
+                    ]
+                ),
+            )
         if result["status"] == "completed":
             analysis = analysis or {}
             followup_plan = self._prepare_followup_plan_from_execution(plan, result, analysis)
@@ -1247,6 +1324,175 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self._refresh_approval_queue()
         self._set_execution_buttons_sensitive(True)
         self._set_status(status)
+        return False
+
+    def _pop_cosmic_concern(self) -> str:
+        buffer_ = self.pop_cosmic_concern_view.get_buffer()
+        return buffer_.get_text(buffer_.get_start_iter(), buffer_.get_end_iter(), True).strip()
+
+    def on_pop_cosmic_scan(self, _button: Gtk.Button | None) -> None:
+        scope = self.pop_cosmic_scope.get_active_text() or "standard"
+        self._set_status(f"Running Pop!_OS/COSMIC {scope} scan...")
+        threading.Thread(target=self._pop_cosmic_scan_worker, args=(scope,), daemon=True).start()
+
+    def _pop_cosmic_scan_worker(self, scope: str) -> None:
+        try:
+            scan = run_pop_cosmic_deep_scan(scope)
+            GLib.idle_add(self._apply_pop_cosmic_scan, scan)
+        except Exception as exc:
+            GLib.idle_add(self._set_status, f"Pop!_OS/COSMIC scan failed: {exc}")
+
+    def _apply_pop_cosmic_scan(self, scan: dict) -> bool:
+        self.pop_cosmic_scan = scan
+        profile = scan.get("profile", {})
+        lines = [
+            f"Generated: {scan.get('generated_at')}",
+            f"Scope: {scan.get('scope')}",
+            f"Applicable: {scan.get('applicable')}",
+            f"OS: {profile.get('pretty_name')}",
+            f"Pop version: {profile.get('pop_version')}",
+            f"COSMIC signal: {profile.get('has_cosmic_signal')}",
+            f"Session: {json.dumps(profile.get('session', {}), indent=2)}",
+            "",
+            "Findings:",
+            *[f"- {finding.get('severity')}: {finding.get('summary')}" for finding in scan.get("findings", [])],
+        ]
+        self._set_text(self.pop_cosmic_profile_view, "\n".join(lines))
+        self._set_status("Pop!_OS/COSMIC scan complete.")
+        return False
+
+    def on_pop_cosmic_research(self, _button: Gtk.Button | None) -> None:
+        if not self.pop_cosmic_scan:
+            self.on_pop_cosmic_scan(None)
+            self._set_status("Started scan first; run research again after scan completes.")
+            return
+        symptom = self._pop_cosmic_concern()
+        self._set_status("Preparing source-aware Pop!_OS/COSMIC research records...")
+        threading.Thread(target=self._pop_cosmic_research_worker, args=(symptom,), daemon=True).start()
+
+    def _pop_cosmic_research_worker(self, symptom: str) -> None:
+        try:
+            profile = (self.pop_cosmic_scan or {}).get("profile", {})
+            research = research_pop_cosmic_issue(symptom, profile, enabled=False)
+            save_research_records(research.get("records", []))
+            GLib.idle_add(self._apply_pop_cosmic_research, research)
+        except Exception as exc:
+            GLib.idle_add(self._set_status, f"Pop!_OS/COSMIC research failed: {exc}")
+
+    def _apply_pop_cosmic_research(self, research: dict) -> bool:
+        self.pop_cosmic_research = research
+        records = research.get("records", [])
+        lines = [
+            f"Research enabled: {research.get('enabled')}",
+            f"Safe query: {research.get('query')}",
+            research.get("privacy", ""),
+            "",
+            "Sources:",
+            *[f"- [{record.get('trust_level')}] {record.get('title')} - {record.get('url')}" for record in records],
+        ]
+        self._append_text(self.pop_cosmic_analysis_view, "\n".join(lines))
+        self._set_status("Pop!_OS/COSMIC research records prepared.")
+        return False
+
+    def on_pop_cosmic_analyze(self, _button: Gtk.Button | None) -> None:
+        if not self.pop_cosmic_scan:
+            self.on_pop_cosmic_scan(None)
+            self._set_status("Started scan first; ask the model after scan completes.")
+            return
+        symptom = self._pop_cosmic_concern()
+        self._set_status("Asking local model ladder to analyze Pop!_OS/COSMIC evidence...")
+        threading.Thread(target=self._pop_cosmic_analyze_worker, args=(symptom,), daemon=True).start()
+
+    def _pop_cosmic_analyze_worker(self, symptom: str) -> None:
+        try:
+            scan = self.pop_cosmic_scan or run_pop_cosmic_deep_scan("standard")
+            profile = scan.get("profile", {})
+            research = (self.pop_cosmic_research or {}).get("records") or load_relevant_research(symptom, profile)
+            lessons = load_relevant_lessons(symptom, profile)
+            analysis = analyze_pop_cosmic_issue(symptom, scan, research, lessons)
+            GLib.idle_add(self._apply_pop_cosmic_analysis, analysis)
+        except Exception as exc:
+            GLib.idle_add(self._set_status, f"Pop!_OS/COSMIC analysis failed: {exc}")
+
+    def _apply_pop_cosmic_analysis(self, analysis: dict) -> bool:
+        self.pop_cosmic_analysis = analysis
+        lines = [
+            f"Source: {analysis.get('source')} {analysis.get('model') or ''}".strip(),
+            f"Working problem: {analysis.get('working_problem')}",
+            f"Likely surface: {analysis.get('likely_surface')}",
+            f"Confidence: {analysis.get('confidence')}",
+            "",
+            "Hypotheses:",
+        ]
+        for hypothesis in analysis.get("hypotheses", []):
+            lines.append(f"- {hypothesis.get('id', '?')}: {hypothesis.get('summary')}")
+        lines.extend(["", "Ranked actions:"])
+        for index, action in enumerate(analysis.get("ranked_actions", []), 1):
+            lines.append(f"{index}. {action.get('action_key')} - {action.get('title')} [{action.get('risk')}]")
+            if action.get("why"):
+                lines.append(f"   why: {action.get('why')}")
+        self._set_text(self.pop_cosmic_analysis_view, "\n".join(lines))
+        self._set_status("Pop!_OS/COSMIC analysis complete.")
+        return False
+
+    def on_pop_cosmic_plan(self, _button: Gtk.Button | None) -> None:
+        if not self.pop_cosmic_analysis:
+            self.on_pop_cosmic_analyze(None)
+            self._set_status("Started analysis first; build the fix plan after analysis completes.")
+            return
+        actions = self.pop_cosmic_analysis.get("ranked_actions", [])
+        action_key = actions[0].get("action_key", "deep-scan-standard") if actions else "deep-scan-standard"
+        plan = prepare_pop_cosmic_action(action_key, self.pop_cosmic_analysis, self.pop_cosmic_scan or {})
+        self.pop_cosmic_plan = plan
+        self.current_request_plan = plan
+        record_request_plan(plan)
+        self._set_text(self.pop_cosmic_action_view, self._plain_plan_summary(plan))
+        self._refresh_approval_queue()
+        self._set_status("Pop!_OS/COSMIC fix plan prepared. Review before execution.")
+
+    def on_pop_cosmic_execute(self, _button: Gtk.Button | None) -> None:
+        if not self.pop_cosmic_plan:
+            self._set_status("Build a Pop!_OS/COSMIC fix plan before executing.")
+            return
+        self._start_plan_execution(self.pop_cosmic_plan)
+
+    def on_pop_cosmic_verify(self, _button: Gtk.Button | None) -> None:
+        if not self.pop_cosmic_result:
+            self._set_status("No Pop!_OS/COSMIC action result is available to verify yet.")
+            return
+        self._set_status("Verifying Pop!_OS/COSMIC action with a fresh scan...")
+        threading.Thread(target=self._pop_cosmic_verify_worker, daemon=True).start()
+
+    def _pop_cosmic_verify_worker(self) -> None:
+        try:
+            post_scan = prepare_verification_plan(self.pop_cosmic_result or {}, self.pop_cosmic_scan or {})
+            lesson = make_lesson(
+                symptom=self._pop_cosmic_concern(),
+                profile=post_scan.get("profile", {}),
+                evidence_summary="; ".join(item.get("summary", "") for item in post_scan.get("findings", [])[:4]),
+                action_taken=", ".join((self.pop_cosmic_result or {}).get("commands", [])),
+                result="improved" if (self.pop_cosmic_result or {}).get("status") == "completed" else "unknown",
+                verification="Post-scan collected after Pop/COSMIC action.",
+            )
+            save_lesson(lesson)
+            GLib.idle_add(self._apply_pop_cosmic_verification, post_scan, lesson)
+        except Exception as exc:
+            GLib.idle_add(self._set_status, f"Pop!_OS/COSMIC verification failed: {exc}")
+
+    def _apply_pop_cosmic_verification(self, post_scan: dict, lesson: dict) -> bool:
+        self.pop_cosmic_scan = post_scan
+        self._append_text(
+            self.pop_cosmic_action_view,
+            "\n".join(
+                [
+                    "Verification scan complete.",
+                    *[f"- {finding.get('summary')}" for finding in post_scan.get("findings", [])],
+                    "",
+                    f"Lesson saved: {lesson.get('result')}",
+                ]
+            ),
+        )
+        self._set_status("Pop!_OS/COSMIC verification complete and lesson saved.")
         return False
 
     def _prepare_followup_plan_from_execution(self, plan: dict, result: dict, analysis: dict | None) -> dict | None:

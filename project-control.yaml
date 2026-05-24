@@ -66,3 +66,18 @@ agent_controls:
     - local-probe-agent-command-set
     - local-ai-coach-system-prompt
     - gemma-request-desk-reasoning-prompt
+pop_cosmic_agent:
+  web_research_enabled: false
+  allowed_domains:
+    - system76.com
+    - support.system76.com
+    - blog.system76.com
+    - github.com/pop-os
+    - api.github.com
+    - ai.google.dev
+    - deepmind.google
+    - ollama.com
+  searxng_url: ""
+  max_results_per_query: 8
+  cache_ttl_days: 14
+  mode: guided-fix

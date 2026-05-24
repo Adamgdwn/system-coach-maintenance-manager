@@ -189,6 +189,16 @@ DVI-I-1 (enabled)
         self.assert_approval_preview(plan)
         self.assertTrue(any("pactl list short sources" in command for command in plan["commands"]))
 
+    def test_prepare_pop_cosmic_plan_routes_to_agent_scan(self):
+        plan = prepare_request_plan("COSMIC panel freezes after suspend on Pop OS", os_name="Linux", distribution_hint="COSMIC")
+
+        self.assertEqual(plan["id"], "request-pop-cosmic-deep-scan-linux")
+        self.assertEqual(plan["family"], "pop-cosmic-deep-scan")
+        self.assert_approval_preview(plan)
+        self.assertTrue(plan["action_contract"]["eligible_for_guarded_execution"])
+        self.assertIn("journalctl --user -b -n 300 --no-pager", plan["commands"])
+        self.assertIn("not approval to update", plan["approval_prompt"])
+
     def test_prepare_network_dns_plan(self):
         plan = prepare_request_plan("DNS seems broken on my internet", os_name="Windows")
 

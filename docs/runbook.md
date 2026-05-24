@@ -23,6 +23,7 @@ Likely failure conditions:
 - The local history archive cannot be written or read.
 - An action contract appears blocked even though the user expects it to run.
 - An elevated action does not show a password/UAC prompt or fails because `pkexec`, Polkit, PowerShell, or UAC is unavailable.
+- Pop!_OS/COSMIC scan, analysis, research records, action planning, execution, verification, or lesson storage fails.
 - Ollama is unavailable, has no supported model, or returns an error while answering.
 - The desktop launcher points to an outdated repository path.
 
@@ -37,7 +38,8 @@ First response:
 7. Run maintenance diagnostics and review findings before preparing any machine-changing action.
 8. Refresh the History view to confirm diagnostics and request plans are being recorded.
 9. Check the Approval Queue to confirm each prepared plan shows exact commands and a clear execution state.
-10. If an action-run attempt is tested, confirm eligible user-level plans run and record output, elevated plans show the OS authorization prompt, and ineligible plans record blocked reasons.
+10. For Pop!_OS/COSMIC issues, run the dedicated deep scan, inspect the generated research records, ask the local model ladder, and build only one fix plan at a time.
+11. If an action-run attempt is tested, confirm eligible user-level plans run only after the confirmation phrase, elevated plans show the OS authorization prompt, and ineligible plans record blocked reasons.
 
 ## Dependencies
 
@@ -64,6 +66,8 @@ First response:
 - If an approval-required plan is generated, review the exact command, target, risk, and rollback before pressing Execute. User-level and elevated plans can execute when the matching contract allows them.
 - If a user request plan is generated, confirm the platform, command, target setting, reversibility, and approval gate before pressing Execute.
 - If Request Desk appears to choose the wrong lane, read the Current Recommendation's hypothesis, evidence check, and alternate families; after execution, the app records a local learning note so later requests can improve.
+- If the Pop!_OS + COSMIC Agent suggests package repair, firmware install, release upgrade, OS refresh, broad config deletion, or package purge, treat that as blocked escalation unless a future exact high-risk plan implements it.
+- If Pop/COSMIC research is needed, enable web research deliberately and use sanitized symptoms/profile facts only. Do not paste full journal logs or private file contents into search queries.
 - If an elevated action fails on Linux, confirm `pkexec` is installed and a Polkit authentication agent is running in the desktop session.
 - If an elevated action fails on Windows, confirm PowerShell can launch UAC prompts for the current account.
 - If an action contract says execution is blocked, review the gate reasons; placeholder, unsupported, uncatalogued, or insufficiently specified plans should remain blocked.

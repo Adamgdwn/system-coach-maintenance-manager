@@ -109,6 +109,21 @@ def _request_scopes(normalized: str) -> list[str]:
         "startup-apps": ("startup", "start up", "login item", "autostart", "boot app", "launch at login"),
         "slow-computer": ("slow", "sluggish", "lag", "laggy", "performance", "freezing", "hang", "memory", "cpu", "disk"),
         "services-logs": ("service", "services", "failed", "error", "errors", "log", "logs", "crash", "crashes"),
+        "pop-cosmic": (
+            "pop os",
+            "pop!_os",
+            "pop! os",
+            "popos",
+            "cosmic",
+            "cosmic store",
+            "cosmic panel",
+            "cosmic launcher",
+            "cosmic settings",
+            "wayland",
+            "xwayland",
+            "compositor",
+            "workspace",
+        ),
     }
     for scope, keywords in scope_keywords.items():
         if _has_any(normalized, keywords):
@@ -246,6 +261,47 @@ def _linux_services_logs_evidence() -> list[dict]:
     return results
 
 
+def _linux_pop_cosmic_evidence() -> list[dict]:
+    commands = []
+    if Path("/etc/os-release").exists():
+        commands.append(["cat", "/etc/os-release"])
+    for args in (
+        ["pgrep", "-a", "cosmic"],
+        ["systemctl", "--user", "--failed", "--no-legend", "--plain"],
+        ["journalctl", "--user", "-b", "-n", "300", "--no-pager"],
+        ["cosmic-randr", "list"],
+        ["apt-get", "check"],
+        ["apt", "list", "--upgradable"],
+    ):
+        if shutil.which(args[0]):
+            commands.append(args)
+    results = []
+    for args in commands:
+        result = _run_read_only(args)
+        if args[0] == "journalctl":
+            result = _filter_log_output(
+                result,
+                (
+                    "cosmic",
+                    "cosmic-comp",
+                    "cosmic-panel",
+                    "wayland",
+                    "xwayland",
+                    "compositor",
+                    "display",
+                    "monitor",
+                    "cursor",
+                    "dock",
+                    "failed",
+                    "error",
+                    "crash",
+                    "timeout",
+                ),
+            )
+        results.append(result)
+    return results
+
+
 def _linux_system_basics() -> list[dict]:
     commands = []
     for args in (["uname", "-a"], ["uptime"], ["df", "-h"]):
@@ -329,6 +385,7 @@ def _linux_evidence(scopes: list[str], desktop_hint: str | None) -> list[dict]:
         "startup-apps": _linux_startup_evidence,
         "slow-computer": _linux_performance_evidence,
         "services-logs": _linux_services_logs_evidence,
+        "pop-cosmic": _linux_pop_cosmic_evidence,
         "system-basics": _linux_system_basics,
     }
     results = []

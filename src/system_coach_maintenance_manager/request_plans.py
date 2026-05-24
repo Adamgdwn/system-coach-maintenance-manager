@@ -16,6 +16,7 @@ SUPPORTED_FAMILY_OVERRIDES = {
     "audio-routing",
     "network-dns",
     "package-updates",
+    "pop-cosmic",
     "docker-cleanup",
     "startup-apps",
     "slow-computer",
@@ -637,6 +638,41 @@ def _package_plan(request_text: str, platform_name: str, platform_key: str) -> d
     )
 
 
+def _pop_cosmic_plan(request_text: str, platform_name: str, platform_key: str) -> dict:
+    if platform_key != "linux":
+        return _unsupported_platform_plan(request_text, platform_name, "pop-cosmic")
+    return _request_plan(
+        plan_id="request-pop-cosmic-deep-scan-linux",
+        family="pop-cosmic-deep-scan",
+        title="Run Pop!_OS/COSMIC agent scan",
+        request_text=request_text,
+        platform_name=platform_name,
+        risk="low",
+        reversible=True,
+        requires_privilege=False,
+        summary=(
+            "Collect bounded Pop!_OS/COSMIC evidence for the concern before proposing any package, firmware, "
+            "session, display, or configuration fix."
+        ),
+        commands=[
+            "pgrep -a cosmic",
+            "systemctl --user --failed --no-legend --plain",
+            "journalctl --user -b -n 300 --no-pager",
+            "cosmic-randr list",
+            "apt-get check",
+            "apt list --upgradable",
+        ],
+        manual_steps=[
+            "Review Pop!_OS/COSMIC profile, user services, display state, package health, and filtered UI logs.",
+            "Use the Pop!_OS + COSMIC Agent page to run deeper analysis and build a ranked fix plan.",
+            "Approve a separate exact fix only after scan evidence and rollback/verification are visible.",
+        ],
+        expected_effect="Collect Pop!_OS/COSMIC troubleshooting evidence without changing packages, services, settings, or display layout.",
+        rollback=["No machine change is made by this evidence plan."],
+        approval_prompt="Approve evidence collection only; this is not approval to update, repair packages, reset configs, restart the session, or install firmware.",
+    )
+
+
 def _docker_plan(request_text: str, platform_name: str, platform_key: str) -> dict:
     if platform_key not in {"linux", "windows"}:
         return _unsupported_platform_plan(request_text, platform_name, "docker-cleanup")
@@ -735,6 +771,23 @@ def _family_for_request(normalized: str) -> str:
         return "display-dock"
     if _has_any(normalized, ("cosmic display layout fix", "apply cosmic display layout fix")):
         return "display-layout-fix"
+    if _has_any(
+        normalized,
+        (
+            "cosmic",
+            "pop os",
+            "pop!_os",
+            "pop! os",
+            "popos",
+            "cosmic store",
+            "cosmic panel",
+            "cosmic launcher",
+            "wayland",
+            "xwayland",
+            "compositor",
+        ),
+    ):
+        return "pop-cosmic"
     if _has_any(normalized, ("cursor", "pointer")):
         return "cursor-size"
     if _has_any(normalized, ("docker", "container", "image", "volume", "prune")):
@@ -906,6 +959,8 @@ def prepare_request_plan(
         return _apply_reasoning_metadata(_network_plan(request_text, platform_name, platform_key), reasoning)
     if family == "package-updates":
         return _apply_reasoning_metadata(_package_plan(request_text, platform_name, platform_key), reasoning)
+    if family == "pop-cosmic":
+        return _apply_reasoning_metadata(_pop_cosmic_plan(request_text, platform_name, platform_key), reasoning)
     if family == "docker-cleanup":
         return _apply_reasoning_metadata(_docker_plan(request_text, platform_name, platform_key), reasoning)
     if family == "startup-apps":

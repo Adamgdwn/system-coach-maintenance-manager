@@ -17,6 +17,12 @@ from .maintenance_actions import build_action_contract, execute_guarded_action
 from .maintenance_history import load_history, record_maintenance_report, record_request_plan
 from .maintenance_history import record_action_result
 from .maintenance_reporting import generate_maintenance_report
+from .pop_cosmic_actions import prepare_pop_cosmic_action, prepare_verification_plan
+from .pop_cosmic_brain import analyze_pop_cosmic_issue
+from .pop_cosmic_deep_scan import run_pop_cosmic_deep_scan
+from .pop_cosmic_knowledge import load_relevant_lessons, load_relevant_research, save_lesson, save_research_records, make_lesson
+from .pop_cosmic_profile import detect_pop_cosmic_environment
+from .pop_cosmic_research import research_pop_cosmic_issue
 from .reporting import generate_report
 from .request_evidence import collect_request_evidence
 from .request_plans import prepare_request_plan
@@ -63,6 +69,9 @@ class SystemCoachHandler(SimpleHTTPRequestHandler):
         if self.path == "/api/history":
             self._send_json(load_history())
             return
+        if self.path == "/api/pop-cosmic/profile":
+            self._send_json(detect_pop_cosmic_environment())
+            return
         if self.path == "/health":
             self.send_response(HTTPStatus.OK)
             self.end_headers()
@@ -71,7 +80,19 @@ class SystemCoachHandler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self) -> None:
-        if self.path not in {"/api/map", "/api/request-plan", "/api/action-contract", "/api/action-run", "/api/ask"}:
+        if self.path not in {
+            "/api/map",
+            "/api/request-plan",
+            "/api/action-contract",
+            "/api/action-run",
+            "/api/ask",
+            "/api/pop-cosmic/deep-scan",
+            "/api/pop-cosmic/research",
+            "/api/pop-cosmic/analyze",
+            "/api/pop-cosmic/plan",
+            "/api/pop-cosmic/execute",
+            "/api/pop-cosmic/verify",
+        }:
             self.send_error(HTTPStatus.NOT_FOUND, "Not found")
             return
 
@@ -138,6 +159,74 @@ class SystemCoachHandler(SimpleHTTPRequestHandler):
             result = execute_guarded_action(contract, str(payload.get("confirmation", "")))
             record_action_result(result)
             self._send_json(result)
+            return
+
+        if self.path == "/api/pop-cosmic/deep-scan":
+            scope = str(payload.get("scope", "standard"))
+            self._send_json(run_pop_cosmic_deep_scan(scope))
+            return
+
+        if self.path == "/api/pop-cosmic/research":
+            symptom = str(payload.get("symptom", ""))
+            profile = payload.get("profile") if isinstance(payload.get("profile"), dict) else detect_pop_cosmic_environment()
+            research = research_pop_cosmic_issue(
+                symptom,
+                profile,
+                enabled=bool(payload.get("enabled", False)),
+                include_github=bool(payload.get("include_github", False)),
+                manual_notes=str(payload.get("manual_notes", "")),
+            )
+            save_research_records(research.get("records", []))
+            self._send_json(research)
+            return
+
+        if self.path == "/api/pop-cosmic/analyze":
+            symptom = str(payload.get("symptom", ""))
+            scan = payload.get("scan") if isinstance(payload.get("scan"), dict) else run_pop_cosmic_deep_scan("standard")
+            profile = scan.get("profile", {})
+            research = payload.get("research") if isinstance(payload.get("research"), list) else load_relevant_research(symptom, profile)
+            lessons = load_relevant_lessons(symptom, profile)
+            self._send_json(analyze_pop_cosmic_issue(symptom, scan, research, lessons))
+            return
+
+        if self.path == "/api/pop-cosmic/plan":
+            action_key = str(payload.get("action_key", "deep-scan-standard"))
+            analysis = payload.get("analysis") if isinstance(payload.get("analysis"), dict) else {}
+            scan = payload.get("scan") if isinstance(payload.get("scan"), dict) else {}
+            plan = prepare_pop_cosmic_action(action_key, analysis, scan)
+            record_request_plan(plan)
+            self._send_json(plan)
+            return
+
+        if self.path == "/api/pop-cosmic/execute":
+            plan = payload.get("plan")
+            if not isinstance(plan, dict):
+                self.send_error(HTTPStatus.BAD_REQUEST, "plan must be an object")
+                return
+            contract = plan.get("action_contract")
+            if not isinstance(contract, dict):
+                self.send_error(HTTPStatus.BAD_REQUEST, "plan.action_contract must be an object")
+                return
+            result = execute_guarded_action(contract, str(payload.get("confirmation", "")))
+            record_action_result(result)
+            self._send_json(result)
+            return
+
+        if self.path == "/api/pop-cosmic/verify":
+            result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+            original_scan = payload.get("scan") if isinstance(payload.get("scan"), dict) else {}
+            post_scan = prepare_verification_plan(result, original_scan)
+            profile = post_scan.get("profile", {})
+            lesson = make_lesson(
+                symptom=str(payload.get("symptom", "")),
+                profile=profile,
+                evidence_summary="; ".join(item.get("summary", "") for item in post_scan.get("findings", [])[:4]),
+                action_taken=", ".join(result.get("commands", [])),
+                result="improved" if result.get("status") == "completed" else "unknown",
+                verification="Post-scan collected after Pop/COSMIC action.",
+            )
+            save_lesson(lesson)
+            self._send_json({"post_scan": post_scan, "lesson": lesson})
             return
 
         if self.path == "/api/ask":

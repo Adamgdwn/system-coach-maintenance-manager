@@ -40,6 +40,7 @@ REQUEST_FAMILIES = {
     "audio-routing",
     "network-dns",
     "package-updates",
+    "pop-cosmic",
     "docker-cleanup",
     "startup-apps",
     "slow-computer",

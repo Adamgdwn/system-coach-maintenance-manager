@@ -19,6 +19,18 @@ const scanResults = document.querySelector("#scanResults");
 const maintenanceSummaryGrid = document.querySelector("#maintenanceSummaryGrid");
 const maintenanceFindings = document.querySelector("#maintenanceFindings");
 const maintenancePlans = document.querySelector("#maintenancePlans");
+const popCosmicConcernInput = document.querySelector("#popCosmicConcernInput");
+const popCosmicScopeInput = document.querySelector("#popCosmicScopeInput");
+const popCosmicScanButton = document.querySelector("#popCosmicScanButton");
+const popCosmicResearchButton = document.querySelector("#popCosmicResearchButton");
+const popCosmicAnalyzeButton = document.querySelector("#popCosmicAnalyzeButton");
+const popCosmicPlanButton = document.querySelector("#popCosmicPlanButton");
+const popCosmicExecuteButton = document.querySelector("#popCosmicExecuteButton");
+const popCosmicVerifyButton = document.querySelector("#popCosmicVerifyButton");
+const popCosmicSummary = document.querySelector("#popCosmicSummary");
+const popCosmicAnalysis = document.querySelector("#popCosmicAnalysis");
+const popCosmicConfirmationInput = document.querySelector("#popCosmicConfirmationInput");
+const popCosmicActionLog = document.querySelector("#popCosmicActionLog");
 const requestInput = document.querySelector("#requestInput");
 const prepareRequestButton = document.querySelector("#prepareRequestButton");
 const requestPlan = document.querySelector("#requestPlan");
@@ -36,9 +48,23 @@ let currentMap = null;
 let currentMaintenance = null;
 let currentRequestPlan = null;
 let currentHistory = null;
+let currentPopCosmicScan = null;
+let currentPopCosmicResearch = null;
+let currentPopCosmicAnalysis = null;
+let currentPopCosmicPlan = null;
+let currentPopCosmicResult = null;
 
 function setStatus(text) {
   statusText.textContent = text;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 function renderSummary(report) {
@@ -370,6 +396,52 @@ function renderRequestPlan(plan) {
   renderApprovalQueue();
 }
 
+function renderPopCosmicScan(scan) {
+  const profile = scan.profile || {};
+  const findings = (scan.findings || [])
+    .map((finding) => `<li>${escapeHtml(finding.severity)}: ${escapeHtml(finding.summary)}</li>`)
+    .join("");
+  popCosmicSummary.innerHTML = `
+    <article class="stack-card">
+      <h3>${escapeHtml(profile.pretty_name || "Unknown Linux")}</h3>
+      <p>Scope: ${escapeHtml(scan.scope)} · Applicable: ${escapeHtml(scan.applicable)} · COSMIC signal: ${escapeHtml(profile.has_cosmic_signal)}</p>
+      <ul class="text-list compact-list">${findings || "<li>No findings returned.</li>"}</ul>
+    </article>
+  `;
+}
+
+function renderPopCosmicAnalysis(analysis) {
+  const hypotheses = (analysis.hypotheses || [])
+    .map((item) => `<li>${escapeHtml(item.id || "H")}: ${escapeHtml(item.summary || "")}</li>`)
+    .join("");
+  const actions = (analysis.ranked_actions || []).map((item, index) => `
+    <li>${index + 1}. <strong>${escapeHtml(item.action_key)}</strong> - ${escapeHtml(item.title || "")} [${escapeHtml(item.risk || "unknown")}]</li>
+  `).join("");
+  popCosmicAnalysis.innerHTML = `
+    <article class="stack-card">
+      <h3>${escapeHtml(analysis.working_problem || "Pop/COSMIC analysis")}</h3>
+      <p>Source: ${escapeHtml(analysis.source || "unknown")} ${escapeHtml(analysis.model || "")} · Surface: ${escapeHtml(analysis.likely_surface || "unknown")} · Confidence: ${escapeHtml(analysis.confidence ?? "unknown")}</p>
+      <p><strong>Hypotheses</strong></p>
+      <ul class="text-list compact-list">${hypotheses || "<li>No hypotheses returned.</li>"}</ul>
+      <p><strong>Ranked actions</strong></p>
+      <ul class="text-list compact-list">${actions || "<li>No actions returned.</li>"}</ul>
+    </article>
+  `;
+}
+
+function renderPopCosmicPlan(plan) {
+  currentRequestPlan = plan;
+  renderRequestPlan(plan);
+  popCosmicActionLog.innerHTML = `
+    <div class="command-entry">
+      <code>${escapeHtml(plan.title)}</code>
+      <span>${escapeHtml(plan.risk)} risk</span>
+      <p>${escapeHtml(plan.summary)}</p>
+      <p>Confirmation phrase: <code>${escapeHtml(plan.action_contract?.confirmation_phrase || "")}</code></p>
+    </div>
+  `;
+}
+
 function renderHistory(history) {
   historyPath.textContent = `History path: ${history.path}`;
   historyChanges.innerHTML = "";
@@ -568,6 +640,134 @@ async function loadHistory() {
   renderHistory(currentHistory);
 }
 
+async function runPopCosmicScan() {
+  setStatus("Running Pop!_OS/COSMIC deep scan...");
+  popCosmicScanButton.disabled = true;
+  try {
+    const response = await fetch("/api/pop-cosmic/deep-scan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scope: popCosmicScopeInput.value || "standard" }),
+    });
+    if (!response.ok) {
+      throw new Error(`Pop/COSMIC scan failed with status ${response.status}`);
+    }
+    currentPopCosmicScan = await response.json();
+    renderPopCosmicScan(currentPopCosmicScan);
+    setStatus("Pop!_OS/COSMIC scan complete.");
+  } catch (error) {
+    console.error(error);
+    setStatus(`Pop!_OS/COSMIC scan failed: ${error.message}`);
+  } finally {
+    popCosmicScanButton.disabled = false;
+  }
+}
+
+async function researchPopCosmic() {
+  if (!currentPopCosmicScan) {
+    await runPopCosmicScan();
+  }
+  setStatus("Preparing Pop!_OS/COSMIC research records...");
+  const response = await fetch("/api/pop-cosmic/research", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      symptom: popCosmicConcernInput.value.trim(),
+      profile: currentPopCosmicScan?.profile,
+      enabled: false,
+    }),
+  });
+  currentPopCosmicResearch = await response.json();
+  const records = (currentPopCosmicResearch.records || [])
+    .map((record) => `<li>[${escapeHtml(record.trust_level)}] ${escapeHtml(record.title)}</li>`)
+    .join("");
+  popCosmicAnalysis.innerHTML = `<article class="stack-card"><h3>Research records</h3><p>${escapeHtml(currentPopCosmicResearch.privacy)}</p><ul class="text-list compact-list">${records}</ul></article>`;
+  setStatus("Pop!_OS/COSMIC research records prepared.");
+}
+
+async function analyzePopCosmic() {
+  if (!currentPopCosmicScan) {
+    await runPopCosmicScan();
+  }
+  setStatus("Asking local model ladder to analyze Pop!_OS/COSMIC evidence...");
+  const response = await fetch("/api/pop-cosmic/analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      symptom: popCosmicConcernInput.value.trim(),
+      scan: currentPopCosmicScan,
+      research: currentPopCosmicResearch?.records || [],
+    }),
+  });
+  currentPopCosmicAnalysis = await response.json();
+  renderPopCosmicAnalysis(currentPopCosmicAnalysis);
+  setStatus("Pop!_OS/COSMIC analysis complete.");
+}
+
+async function buildPopCosmicPlan() {
+  if (!currentPopCosmicAnalysis) {
+    await analyzePopCosmic();
+  }
+  const action = (currentPopCosmicAnalysis.ranked_actions || [])[0] || { action_key: "deep-scan-standard" };
+  const response = await fetch("/api/pop-cosmic/plan", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action_key: action.action_key,
+      analysis: currentPopCosmicAnalysis,
+      scan: currentPopCosmicScan,
+    }),
+  });
+  currentPopCosmicPlan = await response.json();
+  renderPopCosmicPlan(currentPopCosmicPlan);
+  renderApprovalQueue();
+  setStatus("Pop!_OS/COSMIC fix plan prepared.");
+}
+
+async function executePopCosmicPlan() {
+  if (!currentPopCosmicPlan) {
+    setStatus("Build a Pop!_OS/COSMIC fix plan first.");
+    return;
+  }
+  const response = await fetch("/api/pop-cosmic/execute", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      plan: currentPopCosmicPlan,
+      confirmation: popCosmicConfirmationInput.value.trim(),
+    }),
+  });
+  currentPopCosmicResult = await response.json();
+  popCosmicActionLog.innerHTML += `
+    <div class="command-entry">
+      <code>${escapeHtml(currentPopCosmicResult.action_id || "action")}</code>
+      <span>${escapeHtml(currentPopCosmicResult.status)}</span>
+      <p>${escapeHtml(currentPopCosmicResult.output || currentPopCosmicResult.error || "No output.")}</p>
+    </div>
+  `;
+  setStatus(`Pop!_OS/COSMIC action ${currentPopCosmicResult.status}.`);
+}
+
+async function verifyPopCosmicPlan() {
+  if (!currentPopCosmicResult) {
+    setStatus("No Pop!_OS/COSMIC action result is available to verify.");
+    return;
+  }
+  const response = await fetch("/api/pop-cosmic/verify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      symptom: popCosmicConcernInput.value.trim(),
+      result: currentPopCosmicResult,
+      scan: currentPopCosmicScan,
+    }),
+  });
+  const payload = await response.json();
+  currentPopCosmicScan = payload.post_scan;
+  renderPopCosmicScan(currentPopCosmicScan);
+  setStatus("Pop!_OS/COSMIC verification complete and lesson saved.");
+}
+
 async function askCoach() {
   const question = coachQuestionInput.value.trim();
   if (!question) {
@@ -633,6 +833,12 @@ runMapButton.addEventListener("click", runMap);
 shareSummaryButton.addEventListener("click", copyShareSummary);
 runReviewButton.addEventListener("click", runReview);
 runMaintenanceButton.addEventListener("click", runMaintenance);
+popCosmicScanButton.addEventListener("click", runPopCosmicScan);
+popCosmicResearchButton.addEventListener("click", researchPopCosmic);
+popCosmicAnalyzeButton.addEventListener("click", analyzePopCosmic);
+popCosmicPlanButton.addEventListener("click", buildPopCosmicPlan);
+popCosmicExecuteButton.addEventListener("click", executePopCosmicPlan);
+popCosmicVerifyButton.addEventListener("click", verifyPopCosmicPlan);
 prepareRequestButton.addEventListener("click", prepareRequestPlan);
 refreshHistoryButton.addEventListener("click", () => {
   loadHistory()

@@ -15,6 +15,12 @@ System Coach and Maintenance Manager is a local-only educational and maintenance
 - `src/system_coach_maintenance_manager/maintenance_actions.py`: Defines approved-action contracts, guarded eligibility checks, and completed, failed, or blocked action-result records.
 - `src/system_coach_maintenance_manager/maintenance_history.py`: Appends local JSONL history records for diagnostic snapshots, request plans, approval decisions, action results, and learning notes.
 - `src/system_coach_maintenance_manager/maintenance_reporting.py`: Turns maintenance diagnostics into ranked findings and approval-required plan previews.
+- `src/system_coach_maintenance_manager/pop_cosmic_profile.py`: Detects Pop!_OS release, COSMIC session signals, System76 indicators, GPU basics, secure boot visibility, and available support commands without sudo.
+- `src/system_coach_maintenance_manager/pop_cosmic_deep_scan.py`: Collects bounded, redacted Pop!_OS/COSMIC evidence across profile, services, logs, display, GPU, updates, config inventory, and suspend/wake scopes.
+- `src/system_coach_maintenance_manager/pop_cosmic_research.py`: Builds source-aware Pop/COSMIC research records from official sources and optional enabled providers without sending raw local logs.
+- `src/system_coach_maintenance_manager/pop_cosmic_knowledge.py`: Stores local Pop/COSMIC research records, action records, and lessons in JSONL caches.
+- `src/system_coach_maintenance_manager/pop_cosmic_brain.py`: Uses the local Ollama model ladder to analyze Pop/COSMIC scans, research records, and lessons into hypotheses and whitelisted action keys.
+- `src/system_coach_maintenance_manager/pop_cosmic_actions.py`: Maps Pop/COSMIC action keys to exact guarded action contracts or blocked escalation plans.
 - `src/system_coach_maintenance_manager/request_evidence.py`: Collects bounded read-only facts relevant to a Request Desk symptom before Gemma reasons over it.
 - `src/system_coach_maintenance_manager/request_plans.py`: Converts specific user requests into platform-aware approval-required plans, including deeper display/dock evidence plans for external-monitor and pointer-behavior symptoms.
 - `src/system_coach_maintenance_manager/knowledge.py`: Contains built-in explanations for common development tools and stack pairings.
@@ -37,11 +43,12 @@ System Coach and Maintenance Manager is a local-only educational and maintenance
 8. Request Desk sends the accumulated user request, operating-system hint, desktop hint, recent maintenance findings, request evidence, and recent local learning notes to the local Gemma model for structured hypothesis building and clarification.
 9. The deterministic planner accepts only whitelisted model-selected investigation lanes, then prepares the concrete approval-required plan. Display/dock symptoms are routed to topology and compositor evidence collection before any fix is proposed.
 10. Prepared plans receive an approved-action contract; eligible current-user plans can run when the user presses Execute, and eligible elevated plans can request administrator/root authorization through the operating system prompt.
-11. After a guarded action completes, Gemma reviews the captured output and summarizes findings, likely cause, and the best next fix direction.
-12. If the completed action was an evidence plan and the output names an exact safe fix, or if a plain COSMIC display-layout request can be resolved from local evidence, the follow-up planner prepares the next approval-required executable recommendation in Request Desk.
-13. Maintenance reports, Request Desk plans, completed, failed, or blocked action results, and short action-result learning notes can be appended to local history for later review and future Request Desk context.
-14. If the user asks a question, the desktop shell builds a local prompt from the report, optional map, and optional maintenance diagnostics, then submits it to the local Ollama model.
-15. The desktop shell renders the final report, approval queue, history, and AI coaching conversation for exploration and sharing.
+11. The Pop!_OS + COSMIC Agent can run its own scan, prepare source-aware research records, ask the local model ladder for hypotheses and ranked whitelisted action keys, build an exact guarded plan, execute after confirmation, verify with a fresh scan, and save a local lesson.
+12. After a guarded action completes, the local model reviews the captured output and summarizes findings, likely cause, and the best next fix direction.
+13. If the completed action was an evidence plan and the output names an exact safe fix, or if a plain COSMIC display-layout request can be resolved from local evidence, the follow-up planner prepares the next approval-required executable recommendation in Request Desk.
+14. Maintenance reports, Request Desk plans, completed, failed, or blocked action results, and short action-result learning notes can be appended to local history for later review and future Request Desk context.
+15. If the user asks a question, the desktop shell builds a local prompt from the report, optional map, and optional maintenance diagnostics, then submits it to the local Ollama model.
+16. The desktop shell renders the final report, approval queue, history, and AI coaching conversation for exploration and sharing.
 
 The desktop shell adapts its layout based on window size so smaller screens can stack major panels vertically while larger screens stay side-by-side.
 
@@ -70,6 +77,7 @@ No remote services are required, and no probe or filesystem results are transmit
 - Filesystem mapping is opt-in and scope-based to avoid surprising broad scans across the machine.
 - Local AI coaching uses an on-device model through Ollama so stack questions can stay within the local environment.
 - Maintenance diagnostics remain read-only by default. Gemma is allowed to build and reassess hypotheses, but command selection and execution eligibility remain deterministic. Prepared plans require approval, and eligible guarded plans execute only when the user presses Execute.
+- The Pop!_OS + COSMIC Agent is a domain-specific guided-fix flow. Its model layer recommends action keys only; deterministic code maps those keys to exact commands. Risky package, firmware, release-upgrade, refresh, purge, broad config, and guessed restart paths remain blocked until implemented as narrow high-risk flows.
 - Approved-action contracts make execution requirements visible, including whether a plan runs as the current user or through an elevated OS authorization prompt.
 - Local history is JSONL so support handoff can use regular file tools without a database dependency.
 - Browser mode is the portability baseline. Native Windows UI support is a future enhancement unless a cross-platform GUI toolkit is introduced.

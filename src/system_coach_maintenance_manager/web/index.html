@@ -132,6 +132,43 @@
 
         <section class="panel">
           <div class="panel-header">
+            <h2>Pop!_OS + COSMIC Agent</h2>
+            <p>Deep local scan, source-aware research records, local model analysis, exact approved plans, verification, and lessons.</p>
+          </div>
+          <div class="scan-controls">
+            <label class="input-label" for="popCosmicConcernInput">Concern</label>
+            <textarea
+              id="popCosmicConcernInput"
+              rows="3"
+              placeholder="COSMIC panel freezes after suspend.&#10;Monitor layout jumps after wake.&#10;COSMIC Store shows updates but nothing changes."
+            ></textarea>
+            <div class="scan-actions">
+              <select id="popCosmicScopeInput">
+                <option value="standard">standard</option>
+                <option value="display">display</option>
+                <option value="updates">updates</option>
+                <option value="full">full</option>
+              </select>
+              <button id="popCosmicScanButton">Run Deep Scan</button>
+              <button id="popCosmicResearchButton" class="secondary-button">Research Current Issue</button>
+              <button id="popCosmicAnalyzeButton" class="secondary-button">Ask Local Model</button>
+              <button id="popCosmicPlanButton" class="secondary-button">Build Fix Plan</button>
+            </div>
+            <div id="popCosmicSummary" class="stack-list"></div>
+            <div id="popCosmicAnalysis" class="stack-list"></div>
+            <label class="input-label" for="popCosmicConfirmationInput">Confirmation phrase</label>
+            <input id="popCosmicConfirmationInput" placeholder="APPROVE action-..." />
+            <div class="scan-actions">
+              <button id="popCosmicExecuteButton" class="secondary-button">Execute Approved Step</button>
+              <button id="popCosmicVerifyButton" class="secondary-button">Verify Fix</button>
+              <span class="subtle">Execution requires the exact phrase from the selected action contract.</span>
+            </div>
+            <div id="popCosmicActionLog" class="command-log"></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
             <h2>Request Desk</h2>
             <p>Describe a specific change. The app prepares an approval-required plan and does not execute it.</p>
           </div>

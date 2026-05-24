@@ -14,6 +14,7 @@ System Coach and Maintenance Manager is a local-first desktop tool for understan
 - Request Desk plans cover common troubleshooting families and remain approval-required.
 - Display and dock requests collect monitor layout, rotation, dock, GPU, and session log evidence before any display setting or driver change is proposed.
 - Plain-language COSMIC display layout requests can resolve phrases such as "right monitor" and "rotate 90 degrees" into exact `cosmic-randr` commands when local display evidence is available.
+- The Pop!_OS + COSMIC tab provides a dedicated agent flow: deep scan, concern entry, source-aware research records, local model analysis, fix-plan generation, approved execution, verification, and local lessons.
 - The Approval Queue collects prepared diagnostic and request plans in a single scannable place.
 - Approved-action contracts gate execution. The Execute button runs eligible current-user plans directly and eligible elevated plans through an OS password/UAC prompt after user approval.
 - Local history records diagnostic snapshots, request-plan previews, action results, and learning notes for later review.
@@ -36,12 +37,14 @@ After an eligible plan runs, Gemma reviews the captured output and summarizes wh
 3. Optionally scan selected roots to discover projects and configuration files.
 4. Ask the local coach questions about the detected stack or selected roots.
 5. Use Request Desk as a conversation. Type a request, press Enter or Send, answer any follow-up questions, and let the desk prepare a guarded plan from the accumulated context.
-6. Read the Current Recommendation for the problem, evidence, recommended action, and execution status.
-7. Press Execute Current Recommendation from Request Desk when the current guarded plan is the one you want to run.
-8. Use the Approval Queue when choosing between multiple maintenance and request plans.
-9. Review the History view when comparing recent diagnostics or preparing a support handoff.
-10. Use Chat for questions about the current report, diagnostics, request plan, or selected roots.
-11. Copy a share summary when a plain-language environment overview is needed.
+6. For Pop!_OS or COSMIC issues, use the Pop!_OS + COSMIC tab to run a deep scan, describe the concern, ask the local model ladder, and build a ranked fix plan.
+7. Read the Current Recommendation for the problem, evidence, recommended action, and execution status.
+8. Press Execute Current Recommendation or Execute Approved Step only when the exact plan is the one you want to run, then type the confirmation phrase.
+9. Use Verify Fix after Pop/COSMIC execution so the app captures a fresh scan and saves a local lesson.
+10. Use the Approval Queue when choosing between multiple maintenance and request plans.
+11. Review the History view when comparing recent diagnostics or preparing a support handoff.
+12. Use Chat for questions about the current report, diagnostics, request plan, or selected roots.
+13. Copy a share summary when a plain-language environment overview is needed.
 
 ## Maintenance Direction
 
