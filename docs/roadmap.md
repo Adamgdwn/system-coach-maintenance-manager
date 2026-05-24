@@ -186,7 +186,7 @@ Status: completed.
 
 ## Chunk 16: Source Allowlist And Research Scope Tightening
 
-Status: planned.
+Status: completed.
 
 - Replace broad host-only GitHub allowance with path-aware Pop/COSMIC repository rules.
 - Keep official System76 docs, System76 blog/release notes, and official Pop/COSMIC GitHub sources in separate trust tiers.

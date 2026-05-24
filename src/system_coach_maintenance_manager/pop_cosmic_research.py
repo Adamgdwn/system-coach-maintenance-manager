@@ -12,12 +12,27 @@ import urllib.request
 from .pop_cosmic_deep_scan import sanitize_output
 
 
-ALLOWED_DOMAINS = (
+OFFICIAL_SYSTEM76_HOSTS = (
     "system76.com",
     "support.system76.com",
     "blog.system76.com",
-    "github.com",
-    "api.github.com",
+)
+OFFICIAL_POP_OS_REPOS = (
+    "cosmic-comp",
+    "cosmic-epoch",
+    "cosmic-launcher",
+    "cosmic-panel",
+    "cosmic-session",
+    "cosmic-settings",
+    "cosmic-store",
+    "pop",
+    "pop-upgrade",
+)
+ALLOWED_DOMAINS = (
+    *OFFICIAL_SYSTEM76_HOSTS,
+    "github.com/pop-os",
+    "api.github.com/repos/pop-os",
+    "api.github.com/search/issues",
     "ai.google.dev",
     "deepmind.google",
     "ollama.com",
@@ -35,9 +50,49 @@ def _now() -> str:
     return dt.datetime.now().isoformat(timespec="seconds")
 
 
+def _parsed_https_url(url: str) -> urllib.parse.ParseResult:
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme.lower() != "https" or not parsed.netloc:
+        raise ValueError("Pop/COSMIC research URLs must use HTTPS.")
+    return parsed
+
+
+def _path_segments(path: str) -> list[str]:
+    return [segment for segment in path.split("/") if segment]
+
+
+def is_official_system76_url(url: str) -> bool:
+    try:
+        parsed = _parsed_https_url(url)
+    except ValueError:
+        return False
+    host = parsed.netloc.lower()
+    return host in OFFICIAL_SYSTEM76_HOSTS
+
+
+def is_official_pop_os_github_url(url: str) -> bool:
+    try:
+        parsed = _parsed_https_url(url)
+    except ValueError:
+        return False
+    host = parsed.netloc.lower()
+    segments = _path_segments(parsed.path)
+    if host == "github.com":
+        return len(segments) >= 2 and segments[0].lower() == "pop-os" and segments[1].lower() in OFFICIAL_POP_OS_REPOS
+    if host == "api.github.com":
+        if len(segments) >= 4 and segments[0] == "repos" and segments[1].lower() == "pop-os":
+            return segments[2].lower() in OFFICIAL_POP_OS_REPOS
+        return segments[:2] == ["search", "issues"]
+    return False
+
+
+def research_url_allowed(url: str) -> bool:
+    return is_official_system76_url(url) or is_official_pop_os_github_url(url)
+
+
 def _domain_allowed(url: str, allowed_domains: tuple[str, ...] = ALLOWED_DOMAINS) -> bool:
-    host = urllib.parse.urlparse(url).netloc.lower()
-    return any(host == domain or host.endswith(f".{domain}") for domain in allowed_domains)
+    del allowed_domains
+    return research_url_allowed(url)
 
 
 def _source_record(
@@ -117,7 +172,7 @@ class OfficialSystem76Provider(ResearchProvider):
                 record_mode="local-only-disabled-fetch",
             )
         if not _domain_allowed(url):
-            raise ValueError("URL domain is not allowed for Pop/COSMIC research.")
+            raise ValueError("URL is not an official System76 Pop/COSMIC source.")
         with urllib.request.urlopen(url, timeout=12) as response:
             text = response.read(25000).decode("utf-8", errors="replace")
         return _source_record(
@@ -147,12 +202,15 @@ class GitHubCosmicProvider(ResearchProvider):
             return []
         records = []
         for item in payload.get("items", [])[:max_results]:
+            html_url = item.get("html_url", "")
+            if not research_url_allowed(html_url):
+                continue
             records.append(
                 _source_record(
                     source_id=f"github-{item.get('number', abs(hash(item.get('html_url', ''))))}",
                     provider="github",
                     title=item.get("title", "GitHub issue"),
-                    url=item.get("html_url", ""),
+                    url=html_url,
                     published_or_updated=item.get("updated_at", "unknown"),
                     trust_level="maintainer",
                     summary=item.get("title", ""),
@@ -167,7 +225,7 @@ class GitHubCosmicProvider(ResearchProvider):
         if not self.enabled:
             raise ValueError("GitHub research is disabled.")
         if not _domain_allowed(url):
-            raise ValueError("URL domain is not allowed for Pop/COSMIC research.")
+            raise ValueError("URL is not an official Pop/COSMIC GitHub source.")
         with urllib.request.urlopen(url, timeout=12) as response:
             text = response.read(25000).decode("utf-8", errors="replace")
         return _source_record(
