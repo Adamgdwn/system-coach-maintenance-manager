@@ -675,7 +675,14 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         )
         self._set_text(
             self.environment_view,
-            "\n".join(f"{key.replace('_', ' ').title()}: {value}" for key, value in report["environment"].items()),
+            "\n".join(
+                [
+                    *(f"{key.replace('_', ' ').title()}: {value}" for key, value in report["environment"].items()),
+                    "",
+                    "Capability profile:",
+                    *self._plain_capability_summary(report.get("capabilities", {})),
+                ]
+            ),
         )
         self._set_text(self.learning_view, "\n".join(f"{index}. {step}" for index, step in enumerate(report["learning_path"], 1)))
         self._set_text(
@@ -721,6 +728,31 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self._set_status("Review complete. Explore the desktop app panels to learn the environment.")
         self.review_button.set_sensitive(True)
         return False
+
+    def _plain_capability_summary(self, capabilities: dict) -> list[str]:
+        if not capabilities:
+            return ["No portable capability profile was returned."]
+        os_info = capabilities.get("os", {})
+        distro = os_info.get("distribution", {})
+        desktop = capabilities.get("desktop", {})
+        storage = capabilities.get("local_storage", {})
+        lines = [
+            f"Onboarding mode: {capabilities.get('onboarding_mode', 'unknown-machine-first-run')}",
+            f"Distribution: {distro.get('pretty_name') or os_info.get('platform') or 'Unknown'}",
+            f"Desktop family: {desktop.get('family', 'unknown')}",
+            f"Display stack: {capabilities.get('display_stack', {}).get('display_server', 'unknown')}",
+            f"Machine profile path: {storage.get('machine_profile_path', 'user config path')}",
+            storage.get("summary", capabilities.get("privacy", "")),
+            "",
+            "Agent surfaces:",
+        ]
+        for surface in capabilities.get("surfaces", []):
+            state = "available" if surface.get("available") else "blocked/advisory"
+            lines.append(f"- {surface.get('label')}: {state}. {surface.get('reason', '')}")
+        docs = capabilities.get("recommended_docs", [])
+        if docs:
+            lines.extend(["", "Recommended docs:", *(f"- {doc}" for doc in docs)])
+        return lines
 
     def on_run_map(self, _button: Gtk.Button | None) -> None:
         roots = self._selected_roots()

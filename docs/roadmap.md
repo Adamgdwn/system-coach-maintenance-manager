@@ -206,7 +206,7 @@ Status: completed.
 
 ## Chunk 18: Portable System Discovery For Public Users
 
-Status: planned.
+Status: completed.
 
 - Make first-run onboarding assume an unknown machine, not Adam's Pop!_OS workstation.
 - Detect operating system, distribution, desktop environment, package managers, hardware class, GPU, display stack, available privilege helpers, installed local model runtimes, and available maintenance commands.

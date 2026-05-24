@@ -6,6 +6,7 @@ from collections import Counter
 import datetime as dt
 
 from .knowledge import STACK_PATTERNS, describe_component
+from .system_capabilities import detect_system_capabilities
 
 
 def _normalize_tool(probe: dict) -> dict | None:
@@ -86,6 +87,7 @@ def _build_recommendations(installed_commands: set[str]) -> list[str]:
 
 def generate_report(agent_results: list[dict]) -> dict:
     environment = next(result for result in agent_results if result["id"] == "environment")
+    capabilities = detect_system_capabilities()
 
     components = []
     command_log = []
@@ -116,6 +118,7 @@ def generate_report(agent_results: list[dict]) -> dict:
     return {
         "generated_at": dt.datetime.now().isoformat(timespec="seconds"),
         "environment": environment["findings"],
+        "capabilities": capabilities,
         "summary": {
             "installed_component_count": len(components),
             "category_breakdown": dict(categories),

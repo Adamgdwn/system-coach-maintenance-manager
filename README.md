@@ -77,6 +77,7 @@ python3 -m compileall src tests
 
 - A native GTK desktop shell is the default user interface.
 - Browser fallback mode is the cross-platform interface for Windows and Linux distributions without GTK.
+- A portable capability profile assumes an unknown first-run machine, detects operating system, desktop, package managers, model runtimes, privilege helpers, and available maintenance commands, then decides which agent surfaces and docs fit that machine.
 - Probe agents run local commands such as `python3 --version`, `git --version`, and `docker compose version`.
 - Users can opt into filesystem mapping for selected roots such as home directories, project folders, or `/etc`.
 - Read-only maintenance diagnostics inspect system health signals such as disk pressure, memory, CPU load, failed services, recent critical logs, network basics, and package-manager health across Linux and Windows where platform tools are available.
@@ -111,6 +112,7 @@ python3 -m compileall src tests
 - `docs/deployment-guide.md`
 - `docs/runbook.md`
 - `docs/maintenance-manager-plan.md`
+- `docs/system-capability-profile.md`
 - `docs/pop-cosmic-agent.md`
 - `docs/action-runner-contract.md`
 - `docs/setup-linux.md`

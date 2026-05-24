@@ -30,6 +30,7 @@ from .reporting import generate_report
 from .request_evidence import collect_request_evidence
 from .request_plans import prepare_request_plan
 from .scanner import map_filesystem, suggest_roots
+from .system_capabilities import detect_system_capabilities
 
 
 WEB_ROOT = Path(__file__).resolve().parent / "web"
@@ -91,6 +92,9 @@ class SystemCoachHandler(SimpleHTTPRequestHandler):
             return
         if self.path == "/api/history":
             self._send_json(load_history())
+            return
+        if self.path == "/api/capabilities":
+            self._send_json(detect_system_capabilities())
             return
         if self.path == "/api/pop-cosmic/profile":
             self._send_json(detect_pop_cosmic_environment())

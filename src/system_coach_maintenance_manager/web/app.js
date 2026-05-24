@@ -1,6 +1,7 @@
 const statusText = document.querySelector("#statusText");
 const summaryGrid = document.querySelector("#summaryGrid");
 const environmentGrid = document.querySelector("#environmentGrid");
+const capabilityGrid = document.querySelector("#capabilityGrid");
 const componentGrid = document.querySelector("#componentGrid");
 const stackMatches = document.querySelector("#stackMatches");
 const learningPath = document.querySelector("#learningPath");
@@ -96,6 +97,60 @@ function renderEnvironment(report) {
     card.innerHTML = `<span>${key.replaceAll("_", " ")}</span><strong>${value}</strong>`;
     environmentGrid.appendChild(card);
   });
+}
+
+function renderCapabilities(report) {
+  const capabilities = report.capabilities || {};
+  const osInfo = capabilities.os || {};
+  const distro = osInfo.distribution || {};
+  const desktop = capabilities.desktop || {};
+  const surfaces = (capabilities.surfaces || [])
+    .map(
+      (surface) => `
+        <li>
+          <strong>${escapeHtml(surface.label)}</strong>: ${surface.available ? "available" : "blocked/advisory"}
+          <br />${escapeHtml(surface.reason || "")}
+        </li>
+      `
+    )
+    .join("");
+  const docs = (capabilities.recommended_docs || []).map((doc) => `<li><code>${escapeHtml(doc)}</code></li>`).join("");
+  const storage = capabilities.local_storage || {};
+  const popSurface = (capabilities.surfaces || []).find((surface) => surface.id === "pop-cosmic-agent");
+  if (popSurface && !popSurface.available && !currentPopCosmicScan) {
+    popCosmicSummary.innerHTML = `
+      <article class="stack-card">
+        <h3>Pop!_OS + COSMIC signal not detected</h3>
+        <p>${escapeHtml(popSurface.reason || "This agent surface is advisory on the current machine.")}</p>
+      </article>
+    `;
+    popCosmicResearchButton.disabled = true;
+    popCosmicAnalyzeButton.disabled = true;
+    popCosmicPlanButton.disabled = true;
+    popCosmicExecuteButton.disabled = true;
+    popCosmicVerifyButton.disabled = true;
+  } else if (popSurface?.available) {
+    popCosmicResearchButton.disabled = false;
+    popCosmicAnalyzeButton.disabled = false;
+    popCosmicPlanButton.disabled = false;
+    popCosmicExecuteButton.disabled = false;
+    popCosmicVerifyButton.disabled = false;
+  }
+  capabilityGrid.innerHTML = `
+    <article class="stack-card">
+      <div class="stack-topline">
+        <h3>${escapeHtml(distro.pretty_name || osInfo.platform || "Unknown machine")}</h3>
+        <span class="pill">${escapeHtml(desktop.family || "unknown desktop")}</span>
+      </div>
+      <p>Onboarding mode: ${escapeHtml(capabilities.onboarding_mode || "unknown-machine-first-run")}</p>
+      <p>Display stack: ${escapeHtml(capabilities.display_stack?.display_server || "unknown")} · Local storage: ${escapeHtml(storage.machine_profile_path || "user config path")}</p>
+      <p>${escapeHtml(storage.summary || capabilities.privacy || "")}</p>
+      <p><strong>Agent surfaces</strong></p>
+      <ul class="text-list compact-list">${surfaces || "<li>No capability surfaces returned.</li>"}</ul>
+      <p><strong>Recommended docs</strong></p>
+      <ul class="text-list compact-list">${docs || "<li>No specific docs selected.</li>"}</ul>
+    </article>
+  `;
 }
 
 function renderComponents(report) {
@@ -909,6 +964,7 @@ async function runReview() {
     currentReport = report;
     renderSummary(report);
     renderEnvironment(report);
+    renderCapabilities(report);
     renderComponents(report);
     renderStackMatches(report);
     renderLearningPath(report);
