@@ -13,7 +13,22 @@ from .troubleshooting_model import troubleshooting_prompt_block
 
 OLLAMA_URL = "http://127.0.0.1:11434"
 DEFAULT_TIMEOUT = 45
-PREFERRED_MODELS = ["gemma4:latest", "gemma4", "gemma4:e4b", "qwen3:8b", "qwen3", "llama3.1:8b", "mistral"]
+PREFERRED_MODELS = [
+    "gemma4:latest",
+    "gemma4",
+    "gemma4:e4b",
+    "gemma4:26b",
+    "gemma4:31b",
+    "deepseek-r1:14b",
+    "deepseek-r1",
+    "gpt-oss",
+    "gptoss",
+    "qwen3:8b",
+    "qwen3-vl:8b",
+    "qwen3",
+    "llama3.1:8b",
+    "mistral",
+]
 REQUEST_BRAIN_MODELS = ["gemma4:latest", "gemma4", "gemma4:e4b"]
 GEMMA4_MODEL_PREFIX = "gemma4"
 REQUEST_FAMILIES = {

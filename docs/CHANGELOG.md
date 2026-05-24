@@ -5,6 +5,7 @@
 - Recorded the Chunk 0 baseline for the Pop!_OS/COSMIC agent work: governance preflight passed, 62 tests passed, and `compileall` passed before broader agent changes.
 - Enforced guarded-action confirmation phrases in the backend runner, added a GTK execution confirmation modal, and kept browser execution gated by the confirmation field.
 - Made Gemma 4 model selection prefer `gemma4:latest` while accepting any available `gemma4:*` tag before falling back to non-Gemma models.
+- Registered the expanded local Ollama model set for coach fallback use: Gemma 4, DeepSeek R1, Qwen 3, Qwen 3 VL, and pending GPT-OSS.
 - Fixed plain-language COSMIC display-layout requests so "rotate the right monitor 90 degrees" resolves to the right output from local display evidence and creates an executable `cosmic-randr` plan instead of a no-command triage plan.
 - Added elevated action execution mode: eligible privileged plans can now request OS administrator/root approval through Linux `pkexec`/Polkit or Windows UAC after the user presses Execute.
 - Added a reusable troubleshooting mental model and system-access prompt so Request Desk reasons through symptoms, evidence, hypotheses, permissions, verification, and learning across request types.

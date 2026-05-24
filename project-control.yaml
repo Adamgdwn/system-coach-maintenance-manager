@@ -46,7 +46,19 @@ agent_controls:
   model_registry:
     - provider: ollama
       model: gemma4:latest
-      role: local-coach-engine
+      role: primary-local-coach-and-request-brain
+    - provider: ollama
+      model: deepseek-r1:14b
+      role: local-reasoning-fallback
+    - provider: ollama
+      model: qwen3:8b
+      role: local-general-fallback
+    - provider: ollama
+      model: qwen3-vl:8b
+      role: local-vision-capable-fallback
+    - provider: ollama
+      model: gpt-oss
+      role: local-general-fallback-pending-download
   prompt_registry:
     - local-probe-agent-command-set
     - local-ai-coach-system-prompt

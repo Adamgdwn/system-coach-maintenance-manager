@@ -20,6 +20,10 @@ class AiEngineTests(unittest.TestCase):
         model = choose_model(["qwen3:8b", "gemma4:26b", "mistral"])
         self.assertEqual(model, "gemma4:26b")
 
+    def test_choose_model_accepts_new_local_model_family_fallbacks(self):
+        self.assertEqual(choose_model(["qwen3:8b", "deepseek-r1:14b"]), "deepseek-r1:14b")
+        self.assertEqual(choose_model(["qwen3-vl:8b", "gpt-oss"]), "gpt-oss")
+
     def test_choose_request_brain_requires_gemma4(self):
         self.assertEqual(choose_request_brain_model(["qwen3:8b", "gemma4"]), "gemma4")
         self.assertEqual(choose_request_brain_model(["qwen3:8b", "gemma4:26b"]), "gemma4:26b")
