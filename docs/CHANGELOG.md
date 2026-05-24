@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added a GitHub public-alpha handoff and reusable repository template documenting the current repo metadata, release link, branch protection posture, public caveats, validation commands, and GitHub CLI commands used for the alpha launch.
 - Prepared the GitHub landing experience with README screenshots, MIT licensing, alpha caveats, release notes for `v0.1.0-alpha`, and release-readiness checks for sanitized public assets.
 - Added GitHub public-support materials: issue templates, pull request checklist, CI validation workflow, support guidance, security reporting guidance, contributing rules, and explicit license notice.
 - Completed roadmap Chunk 20 by adding public release guidance, privacy and safety documentation, a public walkthrough, expanded release checks, public-user README framing, and risk-register coverage for cloud-provider secrets and unsupported-machine distribution.

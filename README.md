@@ -165,6 +165,7 @@ python3 -m compileall src tests
 - `docs/system-capability-profile.md`
 - `docs/model-provider-setup.md`
 - `docs/public-release-guide.md`
+- `docs/github-public-alpha-handoff.md`
 - `docs/privacy-and-safety.md`
 - `docs/public-walkthrough.md`
 - `docs/pop-cosmic-agent.md`

@@ -2,6 +2,8 @@
 
 This project is safe to share as a local-first supervised maintenance tool when the release checklist passes. Public users should assume the app is inspecting an unknown machine and should start in browser fallback mode unless they already have Linux GTK dependencies installed.
 
+For the completed GitHub public-alpha handoff, current repository settings, release links, branch protection posture, and reusable template for other repositories, see `docs/github-public-alpha-handoff.md`.
+
 ## What This Can Do
 
 - Inspect the local machine with bounded read-only probes.

@@ -241,3 +241,15 @@ Status: completed.
 - Add a public safety model covering approval-required actions, elevated execution, blocked destructive actions, research controls, and local history.
 - Add sample screenshots or text walkthroughs for first-run discovery, Request Desk, Approval Queue, and Pop/COSMIC Agent.
 - Add release checklist items for public distribution, secret scanning, dependency review, and fresh-clone smoke tests.
+
+## Chunk 21: GitHub Public Alpha Handoff And Template
+
+Status: completed.
+
+- Update GitHub repository metadata so the public About panel accurately describes the project.
+- Add accurate topics for platform, runtime, agent, maintenance, and local-first discovery.
+- Switch from private-preview licensing to MIT so public users can download, use, fork, and contribute.
+- Add sanitized README screenshots and release assets for the browser overview, capability profile, guarded request plans, model provider setup, and Pop/COSMIC agent.
+- Publish the `v0.1.0-alpha` prerelease with alpha caveats, safety boundaries, validation notes, and screenshot assets.
+- Add branch protection requiring the `validation` CI check while leaving owner emergency control available.
+- Capture the whole GitHub public-alpha posture in `docs/github-public-alpha-handoff.md` so it can become a repeatable template for other repositories.
