@@ -209,8 +209,29 @@ DVI-I-1 (enabled)
 
         self.assertTrue(intake["ready"])
         self.assertEqual(intake["family"], "pop-cosmic")
+        self.assertIn("bottom-bar interaction", intake["acknowledgement"])
         self.assertEqual(plan["id"], "request-pop-cosmic-deep-scan-linux")
         self.assertEqual(plan["family"], "pop-cosmic-deep-scan")
+
+    def test_prepare_pop_cosmic_panel_restart_plan_is_approved_current_user_action(self):
+        plan = prepare_request_plan(
+            "Restart the current-user COSMIC panel because bottom-bar icon evidence points to stale panel state.",
+            os_name="Linux",
+            distribution_hint="COSMIC",
+            family_override="pop-cosmic-panel-restart",
+            reasoning={
+                "source": "deterministic-followup",
+                "family": "pop-cosmic-panel-restart",
+                "ready": True,
+                "reasoning_summary": "Evidence points to stale COSMIC panel state.",
+            },
+        )
+
+        self.assertEqual(plan["family"], "pop-cosmic-panel-restart")
+        self.assertEqual(plan["commands"], ["pkill -TERM -x cosmic-panel"])
+        self.assertTrue(plan["execution_enabled"])
+        self.assertFalse(plan["requires_privilege"])
+        self.assertIn("bottom bar may disappear briefly", " ".join(plan["manual_steps"]))
 
     def test_prepare_network_dns_plan(self):
         plan = prepare_request_plan("DNS seems broken on my internet", os_name="Windows")

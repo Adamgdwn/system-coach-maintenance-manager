@@ -32,6 +32,7 @@ LOW_RISK_FAMILIES = {
     "pop-cosmic-deep-scan",
     "pop-cosmic-display-evidence",
     "pop-cosmic-open-app",
+    "pop-cosmic-panel-restart",
     "pop-cosmic-update-check",
 }
 ELEVATED_FAMILIES = {
@@ -74,6 +75,7 @@ ALLOWED_EXECUTABLES = {
     "lspci",
     "lsusb",
     "pgrep",
+    "pkill",
     "pop-upgrade",
     "pactl",
     "pacman",
@@ -219,6 +221,10 @@ def _command_allowed(command: str, family: str, *, requires_privilege: bool = Fa
             return False, f"{executable} command does not declare an allowed read or set operation"
     if family.startswith("pop-cosmic"):
         joined = " ".join(parts).lower()
+        if executable == "pkill":
+            if family == "pop-cosmic-panel-restart" and parts == ["pkill", "-TERM", "-x", "cosmic-panel"]:
+                return True, None
+            return False, "Pop/COSMIC process actions are limited to the exact approved current-user panel restart"
         blocked_terms = (" full-upgrade", " install", " remove", " purge", " autoremove", " release upgrade", " recovery upgrade")
         if any(term in f" {joined}" for term in blocked_terms):
             return False, "Pop/COSMIC guarded actions block package mutation, release upgrades, purge, and autoremove by default"

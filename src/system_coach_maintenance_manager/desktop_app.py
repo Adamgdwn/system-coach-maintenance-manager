@@ -1275,10 +1275,18 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             "display-scaling",
             "display-layout-fix",
             "audio-routing",
+            "pop-cosmic-panel-restart",
         }
         reasoning = plan.get("reasoning_brain", {})
         evidence_scopes = reasoning.get("evidence_scopes", [])
         evidence_count = reasoning.get("evidence_command_count", 0)
+        source = str(reasoning.get("source", "deterministic"))
+        is_evidence_plan = plan.get("family") in {
+            "display-dock",
+            "pop-cosmic-deep-scan",
+            "pop-cosmic-display-evidence",
+            "pop-cosmic-update-check",
+        }
 
         if finding:
             problem = finding["summary"]
@@ -1295,6 +1303,10 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
                 why_parts.append(f"Current hypothesis: {reasoning['summary']}")
             if reasoning.get("evidence_assessment"):
                 why_parts.append(f"Evidence check: {reasoning['evidence_assessment']}")
+            if source.startswith("deterministic"):
+                why_parts.append(
+                    "Planner note: I recognized this as a known troubleshooting lane and used guarded local rules for the first step."
+                )
             alternates = reasoning.get("alternate_families", [])
             if alternates:
                 why_parts.append(f"Alternates to keep in mind: {', '.join(alternates)}")
@@ -1312,8 +1324,13 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             )
         elif executable and changes_system:
             action = "Execute will apply this low-risk current-user setting change."
+        elif executable and is_evidence_plan:
+            action = (
+                "Execute will collect read-only evidence. It will not fix the machine yet. "
+                "After the evidence comes back, Request Desk should explain what it found and prepare the next narrow fix if one is supported."
+            )
         elif executable:
-            action = "Execute will run these guarded command(s), capture the output, and ask the local model for the best next fix direction."
+            action = "Execute will run these guarded command(s), capture the output, and then explain the result in plain language."
         else:
             action = "Execute will not run this plan yet because the guarded runner blocked it."
 
@@ -1328,6 +1345,9 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             "",
             "Why:",
             why or "The diagnostic needs more evidence before naming a root cause.",
+            "",
+            "How I would troubleshoot:",
+            *(f"- {item}" for item in plan.get("manual_steps", [])[:5]),
             "",
             "Recommended action:",
             action,
@@ -2163,7 +2183,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
 
         source = reasoning.get("source", "deterministic")
         model = reasoning.get("model")
-        brain_label = f"Local model [{model}]" if source == "local-model" and model else source.replace("-", " ").title()
+        brain_label = f"Local model [{model}]" if source == "local-model" and model else "Request Desk"
 
         if reasoning.get("model_error"):
             self._append_request_message("Request Desk", reasoning["model_error"])
@@ -2229,7 +2249,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             (
                 f"Plan ready: {plan['title']}\n"
                 f"Can execute now: {'yes' if plan['execution_enabled'] else 'no'}\n"
-                "Review the current recommendation, then press Execute when this is the selected fix."
+                "Review the current recommendation. If this is an evidence step, Execute gathers facts first; the fix comes after those facts are reviewed."
             ),
         )
         self._set_status("Request plan prepared. Review it before execution.")

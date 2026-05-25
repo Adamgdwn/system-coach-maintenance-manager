@@ -17,6 +17,7 @@ SUPPORTED_FAMILY_OVERRIDES = {
     "network-dns",
     "package-updates",
     "pop-cosmic",
+    "pop-cosmic-panel-restart",
     "docker-cleanup",
     "startup-apps",
     "slow-computer",
@@ -673,6 +674,7 @@ def _pop_cosmic_plan(request_text: str, platform_name: str, platform_key: str) -
         commands=[
             "pgrep -a cosmic",
             "systemctl --user --failed --no-legend --plain",
+            "systemctl --user list-units --all --no-legend --plain",
             "journalctl --user -b -n 300 --no-pager",
             "cosmic-randr list",
             "apt list --upgradable",
@@ -686,6 +688,40 @@ def _pop_cosmic_plan(request_text: str, platform_name: str, platform_key: str) -
         expected_effect="Collect Pop!_OS/COSMIC troubleshooting evidence without changing packages, services, settings, or display layout.",
         rollback=["No machine change is made by this evidence plan."],
         approval_prompt="Approve evidence collection only; this is not approval to update, repair packages, reset configs, restart the session, or install firmware.",
+    )
+
+
+def _pop_cosmic_panel_restart_plan(request_text: str, platform_name: str, platform_key: str, reasoning: dict | None) -> dict:
+    if platform_key != "linux":
+        return _unsupported_platform_plan(request_text, platform_name, "pop-cosmic-panel-restart")
+    summary = "Restart the current user's COSMIC panel after evidence points to a stuck panel or duplicated panel-button state."
+    if reasoning and reasoning.get("reasoning_summary"):
+        summary = str(reasoning["reasoning_summary"])
+    return _request_plan(
+        plan_id="request-pop-cosmic-panel-restart-linux",
+        family="pop-cosmic-panel-restart",
+        title="Restart current-user COSMIC panel",
+        request_text=request_text,
+        platform_name=platform_name,
+        risk="low",
+        reversible=True,
+        requires_privilege=False,
+        summary=summary,
+        commands=["pkill -TERM -x cosmic-panel"],
+        manual_steps=[
+            "The bottom bar may disappear briefly while COSMIC respawns the panel.",
+            "After it returns, test the left-side bottom-bar icons again.",
+            "If the panel does not return within a few seconds, log out and back in to restart the COSMIC session.",
+        ],
+        expected_effect=(
+            "Terminate only the current user's cosmic-panel process so COSMIC can rebuild the bottom bar, applets, "
+            "launcher button, app-library button, and workspaces button state."
+        ),
+        rollback=[
+            "No files or package state are changed.",
+            "If COSMIC does not respawn the panel, log out and back in to restore the session panel.",
+        ],
+        approval_prompt="Approve only if the evidence points to COSMIC panel state and you are comfortable with the bottom bar briefly restarting.",
     )
 
 
@@ -901,6 +937,25 @@ def review_request_intake(request_text: str, desktop_hint: str | None = None) ->
             "questions": ["Is the issue brightness, scaling/text size, night light/color, refresh rate, or the active monitor?"],
         }
 
+    if family == "pop-cosmic":
+        if _has_any(normalized, COSMIC_SHELL_TERMS):
+            acknowledgement = (
+                "That sounds like a COSMIC panel or bottom-bar interaction issue. "
+                "I will collect panel processes, user-session units, recent panel logs, display state, and package visibility first. "
+                "If the evidence points to a stuck panel, I will prepare a separate approved panel restart."
+            )
+        else:
+            acknowledgement = (
+                "That sounds like a Pop!_OS/COSMIC session issue. "
+                "I will collect read-only COSMIC evidence first, then propose the smallest fix that matches the evidence."
+            )
+        return {
+            "ready": True,
+            "family": family,
+            "acknowledgement": acknowledgement,
+            "questions": [],
+        }
+
     return {
         "ready": True,
         "family": family,
@@ -979,6 +1034,8 @@ def prepare_request_plan(
         return _apply_reasoning_metadata(_package_plan(request_text, platform_name, platform_key), reasoning)
     if family == "pop-cosmic":
         return _apply_reasoning_metadata(_pop_cosmic_plan(request_text, platform_name, platform_key), reasoning)
+    if family == "pop-cosmic-panel-restart":
+        return _apply_reasoning_metadata(_pop_cosmic_panel_restart_plan(request_text, platform_name, platform_key, reasoning), reasoning)
     if family == "docker-cleanup":
         return _apply_reasoning_metadata(_docker_plan(request_text, platform_name, platform_key), reasoning)
     if family == "startup-apps":

@@ -273,6 +273,57 @@ class MaintenanceActionsTests(unittest.TestCase):
         self.assertEqual(result["status"], "completed")
         self.assertEqual(run.call_count, 2)
 
+    def test_pop_cosmic_panel_restart_allows_only_exact_panel_termination(self):
+        control_path = self._project_control("governance_level: 1\nautonomy_level: A1\naction_runner_enabled: true\n")
+        plan = {
+            "id": "request-pop-cosmic-panel-restart-linux",
+            "family": "pop-cosmic-panel-restart",
+            "title": "Restart current-user COSMIC panel",
+            "approval_required": True,
+            "execution_enabled": False,
+            "risk": "low",
+            "reversible": True,
+            "requires_privilege": False,
+            "commands": ["pkill -TERM -x cosmic-panel"],
+            "expected_effect": "Restart the current user's COSMIC panel.",
+            "rollback": ["Log out and back in if the panel does not respawn."],
+        }
+
+        contract = build_action_contract(plan, project_control_path=control_path)
+
+        with patch(
+            "system_coach_maintenance_manager.maintenance_actions.subprocess.run",
+            return_value=CompletedProcess(args=[], returncode=0, stdout="", stderr=""),
+        ) as run:
+            result = execute_guarded_action(contract, contract["confirmation_phrase"])
+
+        self.assertTrue(contract["eligible_for_guarded_execution"])
+        self.assertTrue(contract["execution_enabled"])
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(run.call_args.args[0], ["pkill", "-TERM", "-x", "cosmic-panel"])
+
+    def test_pop_cosmic_panel_restart_blocks_broad_pkill(self):
+        control_path = self._project_control("governance_level: 1\nautonomy_level: A1\naction_runner_enabled: true\n")
+        plan = {
+            "id": "request-pop-cosmic-panel-restart-linux",
+            "family": "pop-cosmic-panel-restart",
+            "title": "Restart current-user COSMIC panel",
+            "approval_required": True,
+            "execution_enabled": False,
+            "risk": "low",
+            "reversible": True,
+            "requires_privilege": False,
+            "commands": ["pkill cosmic"],
+            "expected_effect": "Restart COSMIC.",
+            "rollback": [],
+        }
+
+        contract = build_action_contract(plan, project_control_path=control_path)
+
+        self.assertFalse(contract["eligible_for_guarded_execution"])
+        self.assertFalse(contract["execution_enabled"])
+        self.assertTrue(any("exact approved current-user panel restart" in reason for reason in contract["eligibility_notes"]))
+
     def test_elevated_plan_requires_elevated_runner_flag(self):
         control_path = self._project_control("governance_level: 1\nautonomy_level: A1\naction_runner_enabled: true\n")
         plan = {

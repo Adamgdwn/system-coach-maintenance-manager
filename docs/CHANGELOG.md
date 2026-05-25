@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Made Request Desk Pop/COSMIC bottom-bar investigations explain the evidence in plain language and prepare a narrow approved current-user COSMIC panel restart when duplicated panel-button processes or panel broken-pipe logs support that fix.
 - Removed `apt-get check` from user-level Pop/COSMIC evidence plans so guarded scans do not fail on the dpkg frontend lock; package metadata is collected with non-locking read-only commands instead.
 - Enabled governed Pop/COSMIC live research through Perplexity using `PERPLEXITY_API_KEY`/`PERPLEXITY_MODEL` from the configured master env file, with allowed-domain filtering, redacted secret handling, saved research records, and learning notes for future analysis.
 - Routed COSMIC bottom-bar, panel icon, applet, launcher icon, and tray icon requests through deterministic Pop/COSMIC planning on COSMIC sessions so obvious shell issues do not wait on local model escalation.

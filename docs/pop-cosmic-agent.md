@@ -67,6 +67,7 @@ Executable low-risk/current-user actions:
 - Collect firmware visibility.
 - Open COSMIC Settings.
 - Open COSMIC Store.
+- Restart only the current user's `cosmic-panel` process when prior evidence points to stale panel state, duplicated panel-button processes, or panel broken-pipe logs.
 
 Blocked escalation paths:
 
@@ -76,7 +77,7 @@ Blocked escalation paths:
 - OS refresh.
 - Package purge/autoremove purge.
 - Broad config deletion.
-- Guessed service restarts.
+- Guessed service restarts. The current panel restart is not guessed; it is available only as a narrow follow-up after matching COSMIC panel evidence.
 
 Blocked recommendations are shown as human-readable escalation paths with next steps for collecting evidence and designing a new guarded contract. They are not presented as executable plans until the catalog and tests explicitly support them.
 

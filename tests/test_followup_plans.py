@@ -4,6 +4,7 @@ from system_coach_maintenance_manager.followup_plans import (
     build_cosmic_display_layout_request_from_intent,
     build_followup_request,
     derive_cosmic_display_layout_fix,
+    derive_cosmic_panel_restart_fix,
     parse_cosmic_displays,
 )
 
@@ -37,6 +38,19 @@ DP-1 (enabled)
   Transform: normal
   Modes:
     1920x1080 @ 60.000 Hz (current) (preferred)
+"""
+
+COSMIC_PANEL_OUTPUT = """
+$ pgrep -a cosmic
+4964 cosmic-panel
+5397 cosmic-panel-button com.system76.CosmicAppLibrary
+5399 cosmic-panel-button com.system76.CosmicWorkspaces
+5405 cosmic-panel-button com.system76.CosmicLauncher
+5518 cosmic-panel-button com.system76.CosmicAppLibrary
+5520 cosmic-panel-button com.system76.CosmicWorkspaces
+5526 cosmic-panel-button com.system76.CosmicLauncher
+$ journalctl --user -b -n 300 --no-pager
+May 24 17:54:40 pop-os cosmic-panel[4964]: com.system76.CosmicAppletTiling: Error trying to flush the wayland display: Broken pipe (os error 32)
 """
 
 
@@ -76,6 +90,37 @@ class FollowupPlanTests(unittest.TestCase):
         self.assertEqual(followup["reasoning"]["source"], "deterministic-followup")
         self.assertEqual(followup["reasoning"]["model"], "gemma4:latest")
         self.assertEqual(followup["reasoning"]["family"], "display-layout-fix")
+
+    def test_derive_cosmic_panel_restart_fix_from_bottom_bar_evidence(self):
+        followup = derive_cosmic_panel_restart_fix(
+            "I lost the ability to select the three icons on the left side of the bottom bar.",
+            COSMIC_PANEL_OUTPUT,
+        )
+
+        self.assertIsNotNone(followup)
+        self.assertEqual(followup["family"], "pop-cosmic-panel-restart")
+        self.assertIn("stale COSMIC panel state", followup["summary"])
+        self.assertIn("CosmicLauncher", followup["summary"])
+
+    def test_build_followup_request_for_pop_cosmic_panel_execution(self):
+        followup = build_followup_request(
+            {
+                "family": "pop-cosmic-deep-scan",
+                "request": "I lost the ability to select the three icons on the left side of the bottom bar.",
+            },
+            {
+                "status": "completed",
+                "commands": ["pgrep -a cosmic", "journalctl --user -b -n 300 --no-pager"],
+                "output": COSMIC_PANEL_OUTPUT,
+            },
+            {"model": "qwen3:8b"},
+        )
+
+        self.assertIsNotNone(followup)
+        self.assertEqual(followup["family"], "pop-cosmic-panel-restart")
+        self.assertEqual(followup["reasoning"]["source"], "deterministic-followup")
+        self.assertEqual(followup["reasoning"]["model"], "qwen3:8b")
+        self.assertIn("current user's cosmic-panel", followup["reasoning"]["permission_plan"])
 
     def test_non_evidence_result_does_not_create_followup(self):
         followup = build_followup_request(
