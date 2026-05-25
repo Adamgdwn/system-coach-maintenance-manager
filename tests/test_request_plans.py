@@ -199,6 +199,17 @@ DVI-I-1 (enabled)
         self.assertIn("journalctl --user -b -n 300 --no-pager", plan["commands"])
         self.assertIn("not approval to update", plan["approval_prompt"])
 
+    def test_prepare_cosmic_bottom_bar_request_uses_session_hint(self):
+        request = "I lost the ability to select the three icons on the left side of the bottom bar."
+
+        intake = review_request_intake(request, desktop_hint="COSMIC")
+        plan = prepare_request_plan(request, os_name="Linux", distribution_hint="COSMIC")
+
+        self.assertTrue(intake["ready"])
+        self.assertEqual(intake["family"], "pop-cosmic")
+        self.assertEqual(plan["id"], "request-pop-cosmic-deep-scan-linux")
+        self.assertEqual(plan["family"], "pop-cosmic-deep-scan")
+
     def test_prepare_network_dns_plan(self):
         plan = prepare_request_plan("DNS seems broken on my internet", os_name="Windows")
 

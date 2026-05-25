@@ -2002,7 +2002,14 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self.prepare_request_button.set_sensitive(False)
         self.execute_request_button.set_sensitive(False)
         self._set_status("The local model is thinking through the request...")
-        GLib.timeout_add_seconds(self.REQUEST_BRAIN_TIMEOUT_SECONDS, self._request_brain_timeout, token, request_text, force_plan)
+        GLib.timeout_add_seconds(
+            self.REQUEST_BRAIN_TIMEOUT_SECONDS,
+            self._request_brain_timeout,
+            token,
+            request_text,
+            force_plan,
+            desktop_hint,
+        )
         threading.Thread(
             target=self._request_brain_worker,
             args=(token, request_text, os_name, desktop_hint, self.current_maintenance, force_plan),
@@ -2021,6 +2028,15 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         evidence = {}
         try:
             evidence = collect_request_evidence(request_text, os_name=os_name, desktop_hint=desktop_hint)
+            deterministic = review_request_intake(request_text, desktop_hint)
+            if deterministic.get("ready"):
+                reasoning = self._request_deterministic_reasoning(
+                    deterministic,
+                    evidence,
+                    "Request Desk used deterministic routing because the request was already specific enough to plan safely.",
+                )
+                GLib.idle_add(self._apply_request_brain_result, token, request_text, reasoning, force_plan)
+                return
             history = load_history(limit=20)
             reasoning = reason_about_request(
                 request_text,
@@ -2037,6 +2053,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
                     evidence,
                     reasoning.get("acknowledgement", "Local model request analysis was unavailable."),
                     reasoning.get("reasoning_summary", ""),
+                    desktop_hint,
                 )
         except Exception as exc:
             reasoning = self._request_fallback_reasoning(
@@ -2044,10 +2061,11 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
                 evidence,
                 f"Request Desk local reasoning failed before a plan was prepared: {exc}",
                 "Request Desk worker failed and used deterministic fallback.",
+                desktop_hint,
             )
         GLib.idle_add(self._apply_request_brain_result, token, request_text, reasoning, force_plan)
 
-    def _request_brain_timeout(self, token: int, request_text: str, force_plan: bool) -> bool:
+    def _request_brain_timeout(self, token: int, request_text: str, force_plan: bool, desktop_hint: str | None = None) -> bool:
         if self.active_request_brain_token != token:
             return False
         reasoning = self._request_fallback_reasoning(
@@ -2058,6 +2076,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
                 "I restored the Request Desk controls and used deterministic fallback instead."
             ),
             "Request Desk local model timed out and deterministic fallback was used.",
+            desktop_hint,
         )
         self._apply_request_brain_result(token, request_text, reasoning, force_plan)
         return False
@@ -2068,8 +2087,9 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         evidence: dict,
         model_error: str,
         reasoning_summary: str,
+        desktop_hint: str | None = None,
     ) -> dict:
-        fallback = review_request_intake(request_text)
+        fallback = review_request_intake(request_text, desktop_hint)
         fallback.update(
             {
                 "ok": True,
@@ -2086,6 +2106,24 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             }
         )
         return fallback
+
+    def _request_deterministic_reasoning(self, intake: dict, evidence: dict, reasoning_summary: str) -> dict:
+        reasoning = dict(intake)
+        reasoning.update(
+            {
+                "ok": True,
+                "source": "deterministic-fast-path",
+                "model": None,
+                "confidence": 0.8,
+                "alternate_families": [],
+                "evidence_assessment": "Deterministic routing used the request wording and collected read-only evidence.",
+                "investigation_steps": intake.get("questions", []),
+                "permission_plan": "Prepare an approval-required plan before executing any change.",
+                "reasoning_summary": reasoning_summary,
+                "request_evidence": evidence,
+            }
+        )
+        return reasoning
 
     def _apply_request_brain_result(self, token: int, request_text: str, reasoning: dict, force_plan: bool) -> bool:
         if self.active_request_brain_token != token:

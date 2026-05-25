@@ -23,6 +23,22 @@ SUPPORTED_FAMILY_OVERRIDES = {
     "unknown",
 }
 
+COSMIC_SHELL_TERMS = (
+    "panel icon",
+    "panel icons",
+    "bottom bar",
+    "top bar",
+    "left side of the bottom bar",
+    "right side of the bottom bar",
+    "system tray",
+    "tray icon",
+    "tray icons",
+    "applet",
+    "applets",
+    "launcher icon",
+    "launcher icons",
+)
+
 
 def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text.strip().lower())
@@ -766,11 +782,13 @@ def _slow_computer_plan(request_text: str, platform_name: str, platform_key: str
     )
 
 
-def _family_for_request(normalized: str) -> str:
+def _family_for_request(normalized: str, distribution_hint: str | None = None) -> str:
     if _is_display_dock_request(normalized):
         return "display-dock"
     if _has_any(normalized, ("cosmic display layout fix", "apply cosmic display layout fix")):
         return "display-layout-fix"
+    if _linux_desktop_family(distribution_hint) == "cosmic" and _has_any(normalized, COSMIC_SHELL_TERMS):
+        return "pop-cosmic"
     if _has_any(
         normalized,
         (
@@ -810,7 +828,7 @@ def _family_for_request(normalized: str) -> str:
     return "unknown"
 
 
-def review_request_intake(request_text: str) -> dict:
+def review_request_intake(request_text: str, desktop_hint: str | None = None) -> dict:
     """Decide whether a request is ready for a plan or needs clarification."""
 
     normalized = _normalize(request_text)
@@ -822,7 +840,7 @@ def review_request_intake(request_text: str) -> dict:
             "questions": ["What setting, symptom, or maintenance issue should I inspect?"],
         }
 
-    family = _family_for_request(normalized)
+    family = _family_for_request(normalized, desktop_hint)
     if family == "unknown":
         return {
             "ready": False,
@@ -942,7 +960,7 @@ def prepare_request_plan(
         return _apply_reasoning_metadata(_triage_plan(request_text, platform_name), reasoning)
 
     requested_family = (family_override or "").strip()
-    family = requested_family if requested_family in SUPPORTED_FAMILY_OVERRIDES else _family_for_request(normalized)
+    family = requested_family if requested_family in SUPPORTED_FAMILY_OVERRIDES else _family_for_request(normalized, distribution_hint)
     if family == "unknown":
         return _apply_reasoning_metadata(_triage_plan(request_text, platform_name), reasoning)
     if family == "display-dock":

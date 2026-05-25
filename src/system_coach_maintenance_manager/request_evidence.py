@@ -13,6 +13,21 @@ from pathlib import Path
 
 REQUEST_EVIDENCE_TIMEOUT = 5
 MAX_OUTPUT_CHARS = 5000
+COSMIC_SHELL_TERMS = (
+    "panel icon",
+    "panel icons",
+    "bottom bar",
+    "top bar",
+    "left side of the bottom bar",
+    "right side of the bottom bar",
+    "system tray",
+    "tray icon",
+    "tray icons",
+    "applet",
+    "applets",
+    "launcher icon",
+    "launcher icons",
+)
 
 
 def _now() -> str:
@@ -78,8 +93,9 @@ def _linux_desktop_context() -> dict:
     }
 
 
-def _request_scopes(normalized: str) -> list[str]:
+def _request_scopes(normalized: str, desktop_hint: str | None = None) -> list[str]:
     scopes = []
+    hint = _normalize(desktop_hint or "")
     scope_keywords = {
         "display-dock": (
             "display",
@@ -128,6 +144,8 @@ def _request_scopes(normalized: str) -> list[str]:
     for scope, keywords in scope_keywords.items():
         if _has_any(normalized, keywords):
             scopes.append(scope)
+    if "pop-cosmic" not in scopes and "cosmic" in hint and _has_any(normalized, COSMIC_SHELL_TERMS):
+        scopes.append("pop-cosmic")
     return scopes or ["system-basics"]
 
 
@@ -414,7 +432,7 @@ def collect_request_evidence(
         "facts": {},
         "commands": [],
     }
-    scopes = _request_scopes(normalized)
+    scopes = _request_scopes(normalized, desktop_hint)
     evidence["scopes"] = scopes
 
     if resolved_os.lower() == "linux":

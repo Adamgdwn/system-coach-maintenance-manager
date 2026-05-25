@@ -63,6 +63,24 @@ class RequestEvidenceTests(unittest.TestCase):
         self.assertIn("journalctl --user -b -n 300 --no-pager", commands)
         self.assertIn("apt list --upgradable", commands)
 
+    def test_collects_pop_cosmic_scope_for_bottom_bar_on_cosmic_session(self):
+        with patch("system_coach_maintenance_manager.request_evidence.Path.exists", return_value=True), patch(
+            "system_coach_maintenance_manager.request_evidence.shutil.which", side_effect=self._which
+        ), patch(
+            "system_coach_maintenance_manager.request_evidence.subprocess.run",
+            return_value=CompletedProcess(args=[], returncode=0, stdout="cosmic-panel applet error\n", stderr=""),
+        ):
+            evidence = collect_request_evidence(
+                "I lost the ability to select the three icons on the left side of the bottom bar.",
+                os_name="Linux",
+                desktop_hint="COSMIC",
+            )
+
+        self.assertIn("pop-cosmic", evidence["scopes"])
+        commands = [item["command"] for item in evidence["commands"]]
+        self.assertIn("pgrep -a cosmic", commands)
+        self.assertIn("journalctl --user -b -n 300 --no-pager", commands)
+
 
 if __name__ == "__main__":
     unittest.main()

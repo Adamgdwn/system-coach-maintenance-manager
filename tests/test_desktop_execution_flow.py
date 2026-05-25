@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 
 try:
@@ -74,6 +75,34 @@ class DesktopExecutionFlowTests(unittest.TestCase):
         self.assertEqual(window.prepare_request_button.states[-1], True)
         self.assertEqual(window.execute_request_button.states[-1], False)
         self.assertTrue(any("longer than 1 seconds" in event[2] for event in events if event[0] == "message"))
+
+    def test_request_brain_uses_deterministic_fast_path_for_known_requests(self):
+        window = SystemCoachWindow.__new__(SystemCoachWindow)
+        captured = []
+
+        def idle_add(callback, *args):
+            captured.append((callback, args))
+            return 1
+
+        with patch("system_coach_maintenance_manager.desktop_app.collect_request_evidence", return_value={"scopes": ["pop-cosmic"]}), patch(
+            "system_coach_maintenance_manager.desktop_app.reason_about_request"
+        ) as reason_about_request, patch("system_coach_maintenance_manager.desktop_app.GLib.idle_add", side_effect=idle_add):
+            SystemCoachWindow._request_brain_worker(
+                window,
+                3,
+                "I lost the ability to select the three icons on the left side of the bottom bar.",
+                "Linux",
+                "COSMIC",
+                None,
+                False,
+            )
+
+        reason_about_request.assert_not_called()
+        self.assertEqual(len(captured), 1)
+        _callback, args = captured[0]
+        self.assertEqual(args[0], 3)
+        self.assertEqual(args[2]["source"], "deterministic-fast-path")
+        self.assertEqual(args[2]["family"], "pop-cosmic")
 
 
 if __name__ == "__main__":
