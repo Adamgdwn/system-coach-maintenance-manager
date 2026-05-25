@@ -97,6 +97,30 @@ window {
   color: #705d43;
 }
 
+.working-drama {
+  padding: 22px 26px;
+  border-radius: 22px;
+  border: 1px solid rgba(191, 95, 47, 0.26);
+  background-color: rgba(255, 250, 243, 0.96);
+  box-shadow: 0 22px 55px rgba(43, 33, 21, 0.18);
+}
+
+.working-symbol {
+  color: #bf5f2f;
+  font-size: 42px;
+  font-weight: 900;
+}
+
+.working-title {
+  color: #2b2115;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.working-detail {
+  color: #705d43;
+}
+
 button {
   min-height: 38px;
   padding: 8px 16px;
@@ -249,6 +273,13 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self.pop_cosmic_analysis: dict | None = None
         self.pop_cosmic_plan: dict | None = None
         self.pop_cosmic_result: dict | None = None
+        self.working_pulse_id: int | None = None
+        self.working_pulse_step = 0
+
+        self.app_overlay = Gtk.Overlay()
+        self.app_overlay.set_hexpand(True)
+        self.app_overlay.set_vexpand(True)
+        self.add(self.app_overlay)
 
         outer_scroll = Gtk.ScrolledWindow()
         self._add_class(outer_scroll, "app-scroll")
@@ -257,7 +288,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         outer_scroll.set_min_content_height(self.MIN_VIEWPORT_HEIGHT)
         outer_scroll.set_hexpand(True)
         outer_scroll.set_vexpand(True)
-        self.add(outer_scroll)
+        self.app_overlay.add(outer_scroll)
 
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         self._add_class(root, "app-root")
@@ -402,9 +433,11 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self.command_view = self._make_text_view()
         self.notebook.append_page(self._frame("Command Log", self.command_view), Gtk.Label(label="Command Log"))
 
+        self._build_working_overlay()
         self._content_orientation: Gtk.Orientation | None = None
         self.connect("size-allocate", self._on_size_allocate)
         self.show_all()
+        self._hide_working_drama()
         self._refresh_engine_status()
         self._refresh_model_provider_status()
         self.on_run_review(None)
@@ -832,6 +865,77 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
     def _set_status(self, text: str) -> None:
         self.status_label.set_text(text)
 
+    def _build_working_overlay(self) -> None:
+        self.working_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self._add_class(self.working_box, "working-drama")
+        self.working_box.set_halign(Gtk.Align.CENTER)
+        self.working_box.set_valign(Gtk.Align.CENTER)
+        self.working_box.set_no_show_all(True)
+
+        badge_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        badge_row.set_halign(Gtk.Align.CENTER)
+        self.working_spinner = Gtk.Spinner()
+        badge_row.pack_start(self.working_spinner, False, False, 0)
+
+        self.working_symbol_label = Gtk.Label(label="\u2623")
+        self._add_class(self.working_symbol_label, "working-symbol")
+        badge_row.pack_start(self.working_symbol_label, False, False, 0)
+        self.working_box.pack_start(badge_row, False, False, 0)
+
+        self.working_title_label = Gtk.Label(label="Working...")
+        self._add_class(self.working_title_label, "working-title")
+        self.working_title_label.set_xalign(0.5)
+        self.working_box.pack_start(self.working_title_label, False, False, 0)
+
+        self.working_detail_label = Gtk.Label(label="")
+        self._add_class(self.working_detail_label, "working-detail")
+        self.working_detail_label.set_xalign(0.5)
+        self.working_detail_label.set_line_wrap(True)
+        self.working_detail_label.set_max_width_chars(52)
+        self.working_box.pack_start(self.working_detail_label, False, False, 0)
+
+        self.app_overlay.add_overlay(self.working_box)
+        if hasattr(self.app_overlay, "set_overlay_pass_through"):
+            self.app_overlay.set_overlay_pass_through(self.working_box, True)
+
+    def _pulse_working_symbol(self) -> bool:
+        if not hasattr(self, "working_symbol_label") or not self.working_symbol_label.get_visible():
+            return False
+        spinners = ["|", "/", "-", "\\"]
+        symbol = "\u2623" if self.working_pulse_step % 12 < 9 else "\u2622"
+        self.working_symbol_label.set_text(f"{spinners[self.working_pulse_step % len(spinners)]} {symbol}")
+        self.working_pulse_step += 1
+        return True
+
+    def _show_working_drama(self, title: str, detail: str = "") -> bool:
+        if not hasattr(self, "working_box"):
+            return False
+        self.working_title_label.set_text(title)
+        self.working_detail_label.set_text(detail)
+        self.working_pulse_step = 0
+        self.working_spinner.start()
+        self.working_box.show_all()
+        if self.working_pulse_id is not None:
+            try:
+                GLib.source_remove(self.working_pulse_id)
+            except Exception:
+                pass
+        self.working_pulse_id = GLib.timeout_add(140, self._pulse_working_symbol)
+        return False
+
+    def _hide_working_drama(self) -> bool:
+        if self.working_pulse_id is not None:
+            try:
+                GLib.source_remove(self.working_pulse_id)
+            except Exception:
+                pass
+            self.working_pulse_id = None
+        if hasattr(self, "working_spinner"):
+            self.working_spinner.stop()
+        if hasattr(self, "working_box"):
+            self.working_box.hide()
+        return False
+
     def _append_text(self, view: Gtk.TextView, text: str) -> None:
         buffer_ = view.get_buffer()
         existing = buffer_.get_text(buffer_.get_start_iter(), buffer_.get_end_iter(), True)
@@ -905,6 +1009,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
 
     def on_run_review(self, _button: Gtk.Button | None) -> None:
         self.review_button.set_sensitive(False)
+        self._show_working_drama("Running local review", "Mapping installed tools, environment hints, and learning notes.")
         self._set_status("Running local review...")
         threading.Thread(target=self._run_review_worker, daemon=True).start()
 
@@ -913,6 +1018,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             report = build_report()
             GLib.idle_add(self._apply_report, report)
         except Exception as exc:
+            GLib.idle_add(self._hide_working_drama)
             GLib.idle_add(self._set_status, f"Review failed: {exc}")
             GLib.idle_add(self.review_button.set_sensitive, True)
 
@@ -983,6 +1089,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             self.coach_view,
             "System: Review complete. Ask the coach things like what stands out, what to learn next, or how the tools fit together.",
         )
+        self._hide_working_drama()
         self._set_status("Review complete. Explore the desktop app panels to learn the environment.")
         self.review_button.set_sensitive(True)
         return False
@@ -1018,6 +1125,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             self._set_status("Select at least one root before scanning.")
             return
         self.map_button.set_sensitive(False)
+        self._show_working_drama("Scanning selected roots", "Reading local project markers and config hints.")
         self._set_status("Scanning the selected roots locally...")
         threading.Thread(target=self._run_map_worker, args=(roots,), daemon=True).start()
 
@@ -1026,6 +1134,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             system_map = map_filesystem(roots)
             GLib.idle_add(self._apply_map, system_map)
         except Exception as exc:
+            GLib.idle_add(self._hide_working_drama)
             GLib.idle_add(self._set_status, f"Filesystem map failed: {exc}")
             GLib.idle_add(self.map_button.set_sensitive, True)
 
@@ -1069,6 +1178,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             self.coach_view,
             "System: Filesystem map complete. You can now ask the coach what the selected roots reveal about the machine.",
         )
+        self._hide_working_drama()
         self._set_status("Filesystem map complete.")
         self.map_button.set_sensitive(True)
         return False
@@ -1077,6 +1187,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self.maintenance_button.set_sensitive(False)
         self.maintenance_page_button.set_sensitive(False)
         self.review_backlog_fix_button.set_sensitive(False)
+        self._show_working_drama("Running maintenance diagnostics", "Collecting read-only system health evidence.")
         self._set_status("Running read-only maintenance diagnostics...")
         threading.Thread(target=self._run_maintenance_worker, daemon=True).start()
 
@@ -1085,6 +1196,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             maintenance_report = build_maintenance_report()
             GLib.idle_add(self._apply_maintenance_report, maintenance_report)
         except Exception as exc:
+            GLib.idle_add(self._hide_working_drama)
             GLib.idle_add(self._set_status, f"Maintenance diagnostics failed: {exc}")
             GLib.idle_add(self.maintenance_button.set_sensitive, True)
             GLib.idle_add(self.maintenance_page_button.set_sensitive, True)
@@ -1093,6 +1205,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
     def _apply_maintenance_report(self, maintenance_report: dict) -> bool:
         self.current_maintenance = maintenance_report
         record_maintenance_report(maintenance_report)
+        self._hide_working_drama()
         summary = maintenance_report["summary"]
         sections = [
             f"Generated: {maintenance_report['generated_at']}",
@@ -1752,6 +1865,10 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self._show_approval_queue_page()
         self._show_pending_maintenance_reasoning(plan, finding)
         self._set_execution_buttons_sensitive(False)
+        self._show_working_drama(
+            "Thinking through the maintenance plan",
+            "The local model is checking evidence, risk, rollback, and stop conditions before approval.",
+        )
         self._set_status("Using the local reasoning brain to review the maintenance plan before approval...")
         threading.Thread(target=self._maintenance_reasoning_worker, args=(plan, finding), daemon=True).start()
 
@@ -1819,6 +1936,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
     def _apply_maintenance_reasoning_and_execute(self, plan: dict, reasoning: dict) -> bool:
         plan["maintenance_reasoning"] = reasoning
         self._set_execution_buttons_sensitive(True)
+        self._hide_working_drama()
         source = reasoning.get("source", "reasoning")
         model = reasoning.get("model")
         suffix = f" with {model}" if model else ""
@@ -1848,6 +1966,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         else:
             self._set_status("Executing the selected recommendation...")
         self._set_execution_buttons_sensitive(False)
+        self._show_working_drama("Executing approved fix", "Running only the exact approved command preview.")
         threading.Thread(target=self._execute_plan_worker, args=(plan, confirmation_text), daemon=True).start()
 
     def _show_execution_confirmation_dialog(self, plan: dict) -> str | None:
@@ -1904,6 +2023,11 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         except Exception as exc:
             result["history_error"] = str(exc)
         if result.get("status") == "completed":
+            GLib.idle_add(
+                self._show_working_drama,
+                "Reading the aftermath",
+                "Execution completed. The local model is analyzing the result and looking for the next concrete step.",
+            )
             GLib.idle_add(self._set_status, "Execution completed. Analyzing result with the local model...")
             try:
                 analysis = analyze_action_result(plan, result)
@@ -1939,6 +2063,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         followup_plan = None
         title = str(plan.get("title", "Selected recommendation"))
         status = "Execution finished."
+        self._hide_working_drama()
         try:
             if str(plan.get("family", "")).startswith("pop-cosmic"):
                 self.pop_cosmic_result = result
@@ -2065,6 +2190,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
 
     def on_pop_cosmic_scan(self, _button: Gtk.Button | None) -> None:
         scope = self.pop_cosmic_scope.get_active_text() or "standard"
+        self._show_working_drama("Scanning Pop!_OS and COSMIC", f"Collecting {scope} local evidence without changing settings.")
         self._set_status(f"Running Pop!_OS/COSMIC {scope} scan...")
         threading.Thread(target=self._pop_cosmic_scan_worker, args=(scope,), daemon=True).start()
 
@@ -2073,6 +2199,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             scan = run_pop_cosmic_deep_scan(scope)
             GLib.idle_add(self._apply_pop_cosmic_scan, scan)
         except Exception as exc:
+            GLib.idle_add(self._hide_working_drama)
             GLib.idle_add(self._set_status, f"Pop!_OS/COSMIC scan failed: {exc}")
 
     def _apply_pop_cosmic_scan(self, scan: dict) -> bool:
@@ -2098,6 +2225,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         if missing_cosmic_commands:
             lines.extend(["", "Missing COSMIC commands:", *(f"- {command}" for command in missing_cosmic_commands)])
         self._set_text(self.pop_cosmic_profile_view, "\n".join(lines))
+        self._hide_working_drama()
         self._set_status("Pop!_OS/COSMIC scan complete.")
         return False
 
@@ -2107,6 +2235,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             self._set_status("Started scan first; run research again after scan completes.")
             return
         symptom = self._pop_cosmic_concern()
+        self._show_working_drama("Researching Pop!_OS and COSMIC", "Preparing source-aware research records for the local analysis.")
         self._set_status("Preparing source-aware Pop!_OS/COSMIC research records...")
         threading.Thread(target=self._pop_cosmic_research_worker, args=(symptom,), daemon=True).start()
 
@@ -2156,6 +2285,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
                 )
             GLib.idle_add(self._apply_pop_cosmic_research, research)
         except Exception as exc:
+            GLib.idle_add(self._hide_working_drama)
             GLib.idle_add(self._set_status, f"Pop!_OS/COSMIC research failed: {exc}")
 
     def _apply_pop_cosmic_research(self, research: dict) -> bool:
@@ -2172,6 +2302,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             *[f"- [{record.get('trust_level')}] {record.get('title')} - {record.get('url')}" for record in records],
         ]
         self._append_text(self.pop_cosmic_analysis_view, "\n".join(lines))
+        self._hide_working_drama()
         self._set_status("Pop!_OS/COSMIC research records prepared.")
         return False
 
@@ -2181,6 +2312,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             self._set_status("Started scan first; ask the model after scan completes.")
             return
         symptom = self._pop_cosmic_concern()
+        self._show_working_drama("Asking the local model ladder", "Analyzing COSMIC evidence, lessons, and research notes.")
         self._set_status("Asking local model ladder to analyze Pop!_OS/COSMIC evidence...")
         threading.Thread(target=self._pop_cosmic_analyze_worker, args=(symptom,), daemon=True).start()
 
@@ -2193,6 +2325,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             analysis = analyze_pop_cosmic_issue(symptom, scan, research, lessons)
             GLib.idle_add(self._apply_pop_cosmic_analysis, analysis)
         except Exception as exc:
+            GLib.idle_add(self._hide_working_drama)
             GLib.idle_add(self._set_status, f"Pop!_OS/COSMIC analysis failed: {exc}")
 
     def _apply_pop_cosmic_analysis(self, analysis: dict) -> bool:
@@ -2215,6 +2348,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             if action.get("why"):
                 lines.append(f"   why: {action.get('why')}")
         self._set_text(self.pop_cosmic_analysis_view, "\n".join(lines))
+        self._hide_working_drama()
         self._set_status("Pop!_OS/COSMIC analysis complete.")
         return False
 
@@ -2243,6 +2377,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         if not self.pop_cosmic_result:
             self._set_status("No Pop!_OS/COSMIC action result is available to verify yet.")
             return
+        self._show_working_drama("Verifying the fix", "Running a fresh post-action scan and saving the lesson.")
         self._set_status("Verifying Pop!_OS/COSMIC action with a fresh scan...")
         threading.Thread(target=self._pop_cosmic_verify_worker, daemon=True).start()
 
@@ -2258,6 +2393,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             save_lesson(lesson)
             GLib.idle_add(self._apply_pop_cosmic_verification, post_scan, lesson)
         except Exception as exc:
+            GLib.idle_add(self._hide_working_drama)
             GLib.idle_add(self._set_status, f"Pop!_OS/COSMIC verification failed: {exc}")
 
     def _apply_pop_cosmic_verification(self, post_scan: dict, lesson: dict) -> bool:
@@ -2273,6 +2409,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
                 ]
             ),
         )
+        self._hide_working_drama()
         self._set_status("Pop!_OS/COSMIC verification complete and lesson saved.")
         return False
 
@@ -2403,6 +2540,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self.request_send_button.set_sensitive(False)
         self.prepare_request_button.set_sensitive(False)
         self.execute_request_button.set_sensitive(False)
+        self._show_working_drama("Request Desk is thinking", "The local engine is checking the request, evidence, and safe execution path.")
         self._set_status("The local model is thinking through the request...")
         GLib.timeout_add_seconds(
             self.REQUEST_BRAIN_TIMEOUT_SECONDS,
@@ -2480,6 +2618,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             "Request Desk local model timed out and deterministic fallback was used.",
             desktop_hint,
         )
+        self._hide_working_drama()
         self._apply_request_brain_result(token, request_text, reasoning, force_plan)
         return False
 
@@ -2532,6 +2671,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             return False
         self.active_request_brain_token = None
         self.latest_request_reasoning = reasoning
+        self._hide_working_drama()
         self.request_send_button.set_sensitive(True)
         self.prepare_request_button.set_sensitive(True)
         self.execute_request_button.set_sensitive(self.current_request_plan is not None)
@@ -2629,17 +2769,24 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             return
         self.ask_button.set_sensitive(False)
         self._append_text(self.coach_view, f"You: {question}")
+        self._show_working_drama("Coach is thinking", "Asking the local engine to explain the current system context.")
         self._set_status("Local AI is thinking...")
         threading.Thread(target=self._ask_coach_worker, args=(question,), daemon=True).start()
 
     def _ask_coach_worker(self, question: str) -> None:
-        response = answer_question(
-            question,
-            self.current_report,
-            self.current_map,
-            self.current_maintenance,
-            self.current_request_plan,
-        )
+        try:
+            response = answer_question(
+                question,
+                self.current_report,
+                self.current_map,
+                self.current_maintenance,
+                self.current_request_plan,
+            )
+        except Exception as exc:
+            response = {
+                "model": None,
+                "answer": f"Coach response failed before an answer was returned: {exc}",
+            }
         GLib.idle_add(self._apply_coach_answer, response)
 
     def _apply_coach_answer(self, response: dict) -> bool:
@@ -2647,6 +2794,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self._append_text(self.coach_view, f"Coach [{model}]: {response['answer']}")
         self.ask_button.set_sensitive(True)
         self._refresh_engine_status()
+        self._hide_working_drama()
         self._set_status("Coach answer ready.")
         return False
 
