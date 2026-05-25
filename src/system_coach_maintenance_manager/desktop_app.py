@@ -19,7 +19,14 @@ from .diagnostics import collect_diagnostics
 from .exporting import build_share_text
 from .followup_plans import build_followup_request
 from .maintenance_actions import execute_guarded_action
-from .maintenance_history import format_history, load_history, record_learning_note, record_maintenance_report, record_request_plan
+from .maintenance_history import (
+    apply_recent_fix_overrides,
+    format_history,
+    load_history,
+    record_learning_note,
+    record_maintenance_report,
+    record_request_plan,
+)
 from .maintenance_history import record_action_result
 from .maintenance_reporting import generate_maintenance_report
 from .model_providers import model_provider_status
@@ -239,7 +246,7 @@ def build_report() -> dict:
 
 
 def build_maintenance_report() -> dict:
-    return generate_maintenance_report(collect_diagnostics())
+    return apply_recent_fix_overrides(generate_maintenance_report(collect_diagnostics()))
 
 
 class SystemCoachWindow(Gtk.ApplicationWindow):
@@ -1257,9 +1264,17 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self.review_backlog_fix_button.set_sensitive(True)
         self._refresh_history_view()
         self._refresh_approval_queue()
-        if maintenance_report["findings"]:
+        if self._maintenance_findings_dialog_needed(maintenance_report):
             self._show_maintenance_findings_dialog()
         return False
+
+    def _maintenance_findings_dialog_needed(self, maintenance_report: dict) -> bool:
+        urgent_findings = [
+            finding
+            for finding in maintenance_report.get("findings", [])
+            if finding.get("severity") in {"critical", "warning"} and not finding.get("evidence", {}).get("history_resolution")
+        ]
+        return bool(urgent_findings or maintenance_report.get("action_plans"))
 
     def _maintenance_backlog_plans(self) -> list[dict]:
         if not self.current_maintenance:

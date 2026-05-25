@@ -16,7 +16,7 @@ from .action_plan_registry import execute_registered_action, register_action_pla
 from .ai_engine import answer_question, reason_about_request
 from .diagnostics import collect_diagnostics
 from .maintenance_actions import build_action_contract
-from .maintenance_history import load_history, record_learning_note, record_maintenance_report, record_request_plan
+from .maintenance_history import apply_recent_fix_overrides, load_history, record_learning_note, record_maintenance_report, record_request_plan
 from .maintenance_history import record_action_result
 from .maintenance_reporting import generate_maintenance_report
 from .model_providers import model_provider_status, save_model_provider_config
@@ -43,7 +43,7 @@ def build_report() -> dict:
 
 
 def build_maintenance_report() -> dict:
-    report = generate_maintenance_report(collect_diagnostics())
+    report = apply_recent_fix_overrides(generate_maintenance_report(collect_diagnostics()))
     report["action_plans"] = [register_action_plan(plan) for plan in report.get("action_plans", [])]
     record_maintenance_report(report)
     return report

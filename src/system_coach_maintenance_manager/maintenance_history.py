@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+import copy
 import datetime as dt
 import json
 import os
@@ -11,6 +12,7 @@ import uuid
 
 
 HISTORY_FILE_NAME = "maintenance-history.jsonl"
+RECENT_FIX_WINDOW_HOURS = 24
 
 
 def _now() -> str:
@@ -159,6 +161,150 @@ def _read_records(base_dir: Path | None = None) -> list[dict]:
                     }
                 )
     return records
+
+
+def _parse_recorded_at(value: str | None) -> dt.datetime | None:
+    if not value:
+        return None
+    try:
+        return dt.datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _record_is_recent(record: dict, *, now: dt.datetime, max_age_hours: int) -> bool:
+    recorded_at = _parse_recorded_at(record.get("recorded_at"))
+    if not recorded_at:
+        return False
+    return (now - recorded_at) <= dt.timedelta(hours=max_age_hours)
+
+
+def _action_result_family(result: dict) -> str | None:
+    plan_id = str(result.get("plan_id") or "")
+    action_id = str(result.get("action_id") or "")
+    commands = " ".join(str(command) for command in result.get("commands", []))
+    haystack = f"{plan_id} {action_id} {commands}".lower()
+    if "pop-cosmic-panel-restart" in haystack or "pkill -term -x cosmic-panel" in haystack:
+        return "pop-cosmic-panel-restart"
+    if "display-layout-fix" in haystack or "cosmic-randr mode" in haystack:
+        return "display-layout-fix"
+    return None
+
+
+def _recent_completed_fix_families(records: list[dict], *, max_age_hours: int) -> dict[str, dict]:
+    now = dt.datetime.now()
+    fixed: dict[str, dict] = {}
+    for record in reversed(records):
+        if not _record_is_recent(record, now=now, max_age_hours=max_age_hours):
+            continue
+        if record.get("kind") != "action_result":
+            continue
+        result = record.get("payload", {})
+        if result.get("status") != "completed":
+            continue
+        family = _action_result_family(result)
+        if family and family not in fixed:
+            fixed[family] = {
+                "family": family,
+                "recorded_at": record.get("recorded_at"),
+                "action_id": result.get("action_id"),
+                "plan_id": result.get("plan_id"),
+                "commands": result.get("commands", []),
+            }
+    return fixed
+
+
+def _resolution_for_finding(finding: dict, recent_fixes: dict[str, dict]) -> dict | None:
+    if finding.get("id") == "journal-errors" and "pop-cosmic-panel-restart" in recent_fixes:
+        evidence = finding.get("evidence", {})
+        sample = " ".join(str(item) for item in evidence.get("sample", []))
+        journal_text = f"{finding.get('summary', '')} {sample}".lower()
+        if not any(term in journal_text for term in ("cosmic-panel", "cosmicapplet", "cosmic applet", "broken pipe")):
+            return None
+        fix = recent_fixes["pop-cosmic-panel-restart"]
+        return {
+            "source": "recent-action-history",
+            "fix_family": fix["family"],
+            "action_id": fix.get("action_id"),
+            "plan_id": fix.get("plan_id"),
+            "recorded_at": fix.get("recorded_at"),
+            "reason": (
+                "A recent approved current-user COSMIC panel restart completed. "
+                "The bounded journal query can still contain historical pre-fix panel errors, so this finding is in monitor mode."
+            ),
+            "verify": "Retest the user-visible COSMIC panel symptom before preparing another log-inspection plan.",
+        }
+    return None
+
+
+def _refresh_report_summary(report: dict) -> None:
+    findings = report.get("findings", [])
+    action_plans = report.get("action_plans", [])
+    summary = dict(report.get("summary", {}))
+    summary.update(
+        {
+            "finding_count": len(findings),
+            "status_counts": dict(Counter(finding.get("status", "unknown") for finding in findings)),
+            "severity_counts": dict(Counter(finding.get("severity", "unknown") for finding in findings)),
+            "approval_required_count": len(action_plans),
+            "execution_enabled": any(plan.get("execution_enabled") for plan in action_plans),
+        }
+    )
+    report["summary"] = summary
+
+
+def apply_recent_fix_overrides(
+    report: dict,
+    *,
+    base_dir: Path | None = None,
+    max_age_hours: int = RECENT_FIX_WINDOW_HOURS,
+) -> dict:
+    """Mark findings as recently addressed when local action history supports it.
+
+    This does not delete evidence. It prevents historical diagnostics, especially bounded log
+    samples, from repeatedly becoming the same approval backlog immediately after a targeted
+    approved fix completed.
+    """
+
+    records = _read_records(base_dir)
+    recent_fixes = _recent_completed_fix_families(records, max_age_hours=max_age_hours)
+    if not recent_fixes:
+        return report
+
+    updated = copy.deepcopy(report)
+    addressed_finding_ids: set[str] = set()
+    for finding in updated.get("findings", []):
+        resolution = _resolution_for_finding(finding, recent_fixes)
+        if not resolution:
+            continue
+        addressed_finding_ids.add(str(finding.get("id")))
+        original = {
+            "status": finding.get("status"),
+            "severity": finding.get("severity"),
+            "summary": finding.get("summary"),
+        }
+        finding["status"] = "monitor"
+        finding["severity"] = "info"
+        finding["can_prepare_action"] = False
+        finding["summary"] = f"Recently addressed by {resolution['fix_family']}; monitoring for fresh evidence."
+        finding.setdefault("evidence", {})["history_resolution"] = resolution
+        finding["evidence"]["history_resolution"]["original_finding"] = original
+        finding["recommended_next_steps"] = [
+            resolution["verify"],
+            "Run a fresh targeted check only if the user-visible symptom returns or new post-fix log lines appear.",
+        ]
+
+    if addressed_finding_ids:
+        updated["action_plans"] = [
+            plan for plan in updated.get("action_plans", []) if str(plan.get("finding_id")) not in addressed_finding_ids
+        ]
+        updated.setdefault("recommendations", [])
+        updated["recommendations"] = [
+            "Recent successful fixes moved matching historical findings into monitor mode; verify the symptom before reopening them.",
+            *updated["recommendations"],
+        ]
+        _refresh_report_summary(updated)
+    return updated
 
 
 def _known_good_lessons(records: list[dict]) -> list[str]:

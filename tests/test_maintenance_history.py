@@ -3,8 +3,10 @@ import unittest
 from pathlib import Path
 
 from system_coach_maintenance_manager.maintenance_history import (
+    apply_recent_fix_overrides,
     format_history,
     load_history,
+    record_action_result,
     record_approval_decision,
     record_learning_note,
     record_maintenance_report,
@@ -95,6 +97,107 @@ class MaintenanceHistoryTests(unittest.TestCase):
             history = load_history(base_dir=base_dir)
 
         self.assertTrue(any("Network Basics" in change for change in history["changed_since_last"]))
+
+    def test_recent_panel_restart_moves_journal_finding_to_monitor_mode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            record_action_result(
+                {
+                    "action_id": "action-request-pop-cosmic-panel-restart-linux",
+                    "plan_id": "request-pop-cosmic-panel-restart-linux",
+                    "status": "completed",
+                    "exit_code": 0,
+                    "execution_enabled": True,
+                    "commands": ["pkill -TERM -x cosmic-panel"],
+                },
+                base_dir=base_dir,
+            )
+            report = {
+                "summary": {
+                    "finding_count": 1,
+                    "status_counts": {"warn": 1},
+                    "severity_counts": {"warning": 1},
+                    "approval_required_count": 1,
+                    "execution_enabled": True,
+                },
+                "findings": [
+                    {
+                        "id": "journal-errors",
+                        "title": "Recent Critical Logs",
+                        "status": "warn",
+                        "severity": "warning",
+                        "summary": "14 recent critical journal line(s) were found.",
+                        "evidence": {"sample": ["cosmic-panel: Broken pipe"]},
+                        "recommended_next_steps": ["Group repeated log lines."],
+                        "can_prepare_action": True,
+                    }
+                ],
+                "action_plans": [
+                    {
+                        "id": "plan-journal-errors",
+                        "finding_id": "journal-errors",
+                        "title": "Group recent critical log errors",
+                        "execution_enabled": True,
+                    }
+                ],
+                "recommendations": ["Start with critical findings."],
+            }
+
+            updated = apply_recent_fix_overrides(report, base_dir=base_dir)
+
+        finding = updated["findings"][0]
+        self.assertEqual(finding["status"], "monitor")
+        self.assertEqual(finding["severity"], "info")
+        self.assertFalse(finding["can_prepare_action"])
+        self.assertEqual(updated["action_plans"], [])
+        self.assertEqual(updated["summary"]["approval_required_count"], 0)
+        self.assertFalse(updated["summary"]["execution_enabled"])
+        self.assertIn("history_resolution", finding["evidence"])
+        self.assertIn("monitor mode", updated["recommendations"][0])
+
+    def test_recent_panel_restart_does_not_hide_unrelated_journal_finding(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            record_action_result(
+                {
+                    "action_id": "action-request-pop-cosmic-panel-restart-linux",
+                    "plan_id": "request-pop-cosmic-panel-restart-linux",
+                    "status": "completed",
+                    "exit_code": 0,
+                    "execution_enabled": True,
+                    "commands": ["pkill -TERM -x cosmic-panel"],
+                },
+                base_dir=base_dir,
+            )
+            report = {
+                "summary": {
+                    "finding_count": 1,
+                    "status_counts": {"warn": 1},
+                    "severity_counts": {"warning": 1},
+                    "approval_required_count": 1,
+                    "execution_enabled": True,
+                },
+                "findings": [
+                    {
+                        "id": "journal-errors",
+                        "title": "Recent Critical Logs",
+                        "status": "warn",
+                        "severity": "warning",
+                        "summary": "Kernel reported unrelated storage errors.",
+                        "evidence": {"sample": ["kernel: nvme timeout"]},
+                        "recommended_next_steps": ["Group repeated log lines."],
+                        "can_prepare_action": True,
+                    }
+                ],
+                "action_plans": [{"id": "plan-journal-errors", "finding_id": "journal-errors"}],
+                "recommendations": [],
+            }
+
+            updated = apply_recent_fix_overrides(report, base_dir=base_dir)
+
+        self.assertEqual(updated["findings"][0]["status"], "warn")
+        self.assertEqual(updated["findings"][0]["severity"], "warning")
+        self.assertEqual(updated["action_plans"][0]["finding_id"], "journal-errors")
 
 
 if __name__ == "__main__":
