@@ -104,6 +104,52 @@ class DesktopExecutionFlowTests(unittest.TestCase):
         self.assertEqual(args[2]["source"], "deterministic-fast-path")
         self.assertEqual(args[2]["family"], "pop-cosmic")
 
+    def test_review_next_backlog_fix_starts_first_executable_maintenance_plan(self):
+        class Picker:
+            def __init__(self):
+                self.active = None
+
+            def set_active(self, index):
+                self.active = index
+
+        window = SystemCoachWindow.__new__(SystemCoachWindow)
+        events = []
+        blocked = {
+            "id": "blocked-plan",
+            "title": "Blocked plan",
+            "execution_enabled": False,
+            "action_contract": {"execution_enabled": False},
+        }
+        executable = {
+            "id": "executable-plan",
+            "title": "Executable plan",
+            "execution_enabled": True,
+            "action_contract": {"execution_enabled": True},
+        }
+        picker = Picker()
+        window.current_maintenance = {"action_plans": [blocked, executable]}
+        window.queued_plans = [blocked, executable]
+        window.approval_plan_picker = picker
+        window._refresh_approval_queue = lambda: events.append(("refresh",))
+        window._set_status = lambda status: events.append(("status", status))
+        window._start_plan_execution = lambda plan: events.append(("start", plan["id"]))
+
+        SystemCoachWindow.on_review_next_backlog_fix(window, None)
+
+        self.assertEqual(picker.active, 1)
+        self.assertIn(("start", "executable-plan"), events)
+
+    def test_review_next_backlog_fix_reports_missing_diagnostics(self):
+        window = SystemCoachWindow.__new__(SystemCoachWindow)
+        events = []
+        window.current_maintenance = None
+        window._set_status = lambda status: events.append(("status", status))
+        window._show_action_dialog = lambda title, body: events.append(("dialog", title, body))
+
+        SystemCoachWindow.on_review_next_backlog_fix(window, None)
+
+        self.assertTrue(any(event[0] == "dialog" and event[1] == "No Maintenance Backlog Yet" for event in events))
+
 
 if __name__ == "__main__":
     unittest.main()

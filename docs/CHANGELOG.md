@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added a Maintenance-page "Review & Approve Backlog Fix" shortcut that opens the next executable diagnostics-generated plan in the guarded approval dialog so users can type `APPROVE` without switching workflows.
 - Made Request Desk Pop/COSMIC bottom-bar investigations explain the evidence in plain language and prepare a narrow approved current-user COSMIC panel restart when duplicated panel-button processes or panel broken-pipe logs support that fix.
 - Removed `apt-get check` from user-level Pop/COSMIC evidence plans so guarded scans do not fail on the dpkg frontend lock; package metadata is collected with non-locking read-only commands instead.
 - Enabled governed Pop/COSMIC live research through Perplexity using `PERPLEXITY_API_KEY`/`PERPLEXITY_MODEL` from the configured master env file, with allowed-domain filtering, redacted secret handling, saved research records, and learning notes for future analysis.

@@ -570,6 +570,13 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self.review_findings_button.connect("clicked", self.on_review_findings)
         action_row.add(self.review_findings_button)
 
+        self.review_backlog_fix_button = Gtk.Button(label="Review & Approve Backlog Fix")
+        self.review_backlog_fix_button.set_tooltip_text(
+            "Open the next executable maintenance plan from the latest diagnostics. Runs only after APPROVE."
+        )
+        self.review_backlog_fix_button.connect("clicked", self.on_review_next_backlog_fix)
+        action_row.add(self.review_backlog_fix_button)
+
         self.maintenance_summary_view = self._make_text_view()
         self.maintenance_page.pack_start(
             self._frame("Maintenance Summary And Findings", self.maintenance_summary_view),
@@ -1069,6 +1076,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
     def on_run_maintenance(self, _button: Gtk.Button | None) -> None:
         self.maintenance_button.set_sensitive(False)
         self.maintenance_page_button.set_sensitive(False)
+        self.review_backlog_fix_button.set_sensitive(False)
         self._set_status("Running read-only maintenance diagnostics...")
         threading.Thread(target=self._run_maintenance_worker, daemon=True).start()
 
@@ -1080,6 +1088,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             GLib.idle_add(self._set_status, f"Maintenance diagnostics failed: {exc}")
             GLib.idle_add(self.maintenance_button.set_sensitive, True)
             GLib.idle_add(self.maintenance_page_button.set_sensitive, True)
+            GLib.idle_add(self.review_backlog_fix_button.set_sensitive, True)
 
     def _apply_maintenance_report(self, maintenance_report: dict) -> bool:
         self.current_maintenance = maintenance_report
@@ -1123,14 +1132,64 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             self.coach_view,
             "System: Maintenance diagnostics complete. Ask the coach which finding to inspect first or how to prepare an approval-safe plan.",
         )
-        self._set_status("Maintenance diagnostics complete. No fixes were executed.")
+        executable_backlog = self._maintenance_backlog_plans()
+        if executable_backlog:
+            self._set_status(
+                f"Maintenance diagnostics complete. {len(executable_backlog)} backlog plan(s) can be reviewed for approval."
+            )
+        else:
+            self._set_status("Maintenance diagnostics complete. No executable backlog fixes are ready.")
         self.maintenance_button.set_sensitive(True)
         self.maintenance_page_button.set_sensitive(True)
+        self.review_backlog_fix_button.set_sensitive(True)
         self._refresh_history_view()
         self._refresh_approval_queue()
         if maintenance_report["findings"]:
             self._show_maintenance_findings_dialog()
         return False
+
+    def _maintenance_backlog_plans(self) -> list[dict]:
+        if not self.current_maintenance:
+            return []
+        plans = self.current_maintenance.get("action_plans", [])
+        return [
+            plan
+            for plan in plans
+            if (plan.get("action_contract") or {}).get("execution_enabled", plan.get("execution_enabled", False))
+        ]
+
+    def _select_plan_in_approval_queue(self, plan: dict) -> None:
+        if not hasattr(self, "approval_plan_picker"):
+            return
+        for index, queued_plan in enumerate(getattr(self, "queued_plans", [])):
+            if queued_plan is plan or queued_plan.get("id") == plan.get("id"):
+                self.approval_plan_picker.set_active(index)
+                return
+
+    def on_review_next_backlog_fix(self, _button: Gtk.Button | None) -> None:
+        if not self.current_maintenance:
+            self._set_status("Run maintenance diagnostics before reviewing backlog fixes.")
+            self._show_action_dialog(
+                "No Maintenance Backlog Yet",
+                "Run maintenance diagnostics first. Then this button will open the next executable approval-required maintenance plan.",
+            )
+            return
+        executable_backlog = self._maintenance_backlog_plans()
+        if not executable_backlog:
+            self._set_status("No executable maintenance backlog fixes are ready.")
+            self._show_action_dialog(
+                "No Executable Backlog Fix",
+                (
+                    "The latest diagnostics did not prepare an executable backlog fix. "
+                    "Blocked or higher-risk findings still need narrower troubleshooting before approval."
+                ),
+            )
+            return
+        self._refresh_approval_queue()
+        plan = executable_backlog[0]
+        self._select_plan_in_approval_queue(plan)
+        self._set_status("Reviewing the next maintenance backlog fix. Type APPROVE only if the plan looks right.")
+        self._start_plan_execution(plan)
 
     def _refresh_history_view(self) -> None:
         self.current_history = load_history()
