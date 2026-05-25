@@ -1258,7 +1258,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         elevation_prompt = contract.get("elevation_prompt") or {}
         gate_reasons = contract.get("execution_gate", {}).get("reasons", [])
         if executable:
-            self.execution_gate_label.set_text("Selected fix can execute. Press Execute Selected Fix to run it now.")
+            self.execution_gate_label.set_text("Selected plan can execute. Review the explanation, then press Execute when it looks right.")
         else:
             self.execution_gate_label.set_text(
                 "Selected fix is blocked. Review the reason below, then prepare a narrower or lower-risk plan."
@@ -1327,6 +1327,110 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
                 return finding
         return None
 
+    def _finding_evidence_summary(self, finding: dict) -> str:
+        evidence = finding.get("evidence", {})
+        if finding.get("id") == "journal-errors":
+            sample = evidence.get("sample", []) if isinstance(evidence, dict) else []
+            lines = [f"The scan saw {evidence.get('line_count', 'some')} recent critical log line(s)."]
+            if sample:
+                lines.append("Sample:")
+                lines.extend(f"- {line}" for line in sample[:3])
+            return "\n".join(lines)
+        if finding.get("id") == "failed-services":
+            services = evidence.get("services", []) if isinstance(evidence, dict) else []
+            if services:
+                return "Failed service candidates:\n" + "\n".join(f"- {service}" for service in services[:6])
+            return "The system service scan reported failed services, but no service names were captured in the summary."
+        if finding.get("id") == "package-manager-health":
+            manager = evidence.get("manager", "the package manager") if isinstance(evidence, dict) else "the package manager"
+            output = evidence.get("output", "") if isinstance(evidence, dict) else ""
+            lines = [f"{manager} reported package-health trouble."]
+            if output:
+                lines.extend(["Package-manager output:", output[:1000]])
+            return "\n".join(lines)
+        if finding.get("id") == "network-basics":
+            if isinstance(evidence, dict):
+                route = evidence.get("default_route") or "No default route was captured."
+                dns = "DNS resolution looked available." if evidence.get("dns_resolution_ok") else "DNS resolution needs review."
+                return "\n".join([f"Default route: {route}", dns])
+        return json.dumps(evidence, indent=2)
+
+    def _maintenance_plan_why(self, plan: dict, finding: dict) -> str:
+        finding_id = finding.get("id")
+        if finding_id == "journal-errors":
+            return (
+                "Critical log lines are evidence, not a fix target by themselves. "
+                "The next logical step is to collect a wider log sample and group repeated messages by service, device, or package. "
+                "Only after that should the app propose a restart, package repair, driver path, or COSMIC/session fix."
+            )
+        if finding_id == "failed-services":
+            return (
+                "A failed service can be harmless, stale, or the main cause. "
+                "The next step is to identify the exact failed service before any restart or configuration change."
+            )
+        if finding_id == "package-manager-health":
+            return (
+                "Package-manager problems can affect updates and installs, but repair commands can be intrusive. "
+                "The safe path is to inspect package database health first, then prepare a narrower repair only if the output identifies one."
+            )
+        if finding_id == "network-basics":
+            return (
+                "Network symptoms need route and DNS evidence before changing adapters, resolvers, VPN settings, or router assumptions. "
+                "This plan gathers that evidence without changing the connection."
+            )
+        return (
+            "The maintenance scan found this condition in read-only diagnostics. "
+            "The next step is to gather the smallest additional evidence needed before any machine-changing fix."
+        )
+
+    def _maintenance_plan_action(self, plan: dict, finding: dict, executable: bool, execution_mode: str | None) -> str:
+        if not executable:
+            return "This plan cannot run yet because the guarded runner blocked it. Review the gate reason and narrow the plan first."
+        if finding.get("id") == "journal-errors":
+            return (
+                "Run a read-only journal query for the latest critical errors. "
+                "This does not change services or settings; it gives the agent enough output to explain the repeated source and propose the next narrow fix."
+            )
+        if finding.get("id") == "failed-services":
+            return (
+                "List failed services first. This does not restart anything; it identifies the named service that would need a separate approved follow-up."
+            )
+        if finding.get("id") == "package-manager-health":
+            if execution_mode == "elevated":
+                return (
+                    "Ask the operating system for administrator approval, then run only the package health check. "
+                    "This is still inspection, not package repair, install, remove, or upgrade."
+                )
+            return "Run only the package health check so the next plan can name the exact package or database issue."
+        if finding.get("id") == "network-basics":
+            return "Collect route and DNS state without changing the network. The output determines whether a later adapter, DNS, or VPN fix is justified."
+        return f"Run the approved diagnostic step: {plan.get('expected_effect', 'collect evidence for the next decision')}"
+
+    def _maintenance_troubleshooting_steps(self, plan: dict, finding: dict) -> list[str]:
+        steps = []
+        if finding.get("id") == "journal-errors":
+            steps.extend(
+                [
+                    "Treat the critical log finding as a symptom, not the root cause.",
+                    "Collect a larger recent error sample.",
+                    "Group repeated lines by service, device, package, or desktop component.",
+                    "Propose a separate fix only for the repeated source.",
+                ]
+            )
+        elif finding.get("id") == "package-manager-health":
+            steps.extend(
+                [
+                    "Check package database health without installing or removing anything.",
+                    "Read the exact package-manager failure.",
+                    "Prepare a narrower repair only if the output identifies the affected package, lock, source, or database state.",
+                ]
+            )
+        else:
+            steps.extend(plan.get("manual_steps", [])[:4])
+        if not steps:
+            steps.append("Collect the next narrow evidence step before changing the machine.")
+        return steps
+
     def _plain_plan_summary(self, plan: dict) -> str:
         finding = self._finding_for_plan(plan)
         contract = plan.get("action_contract", {})
@@ -1359,8 +1463,8 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
 
         if finding:
             problem = finding["summary"]
-            evidence = json.dumps(finding.get("evidence", {}), indent=2)
-            why = "The maintenance scan found this condition in the latest read-only diagnostics."
+            evidence = self._finding_evidence_summary(finding)
+            why = self._maintenance_plan_why(plan, finding)
         else:
             problem = plan.get("request") or plan.get("summary", "This plan came from a direct user request.")
             if evidence_scopes:
@@ -1386,7 +1490,9 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
                 why_parts.append(f"Permission plan: {reasoning['permission_plan']}")
             why = "\n".join(why_parts) or plan.get("summary", "The request matched a known maintenance family.")
 
-        if executable and execution_mode == "elevated":
+        if finding:
+            action = self._maintenance_plan_action(plan, finding, executable, execution_mode)
+        elif executable and execution_mode == "elevated":
             action = (
                 "Execute will request administrator permission with the operating-system password prompt, "
                 "then run the exact elevated command(s)."
@@ -1416,7 +1522,14 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             why or "The diagnostic needs more evidence before naming a root cause.",
             "",
             "How I would troubleshoot:",
-            *(f"- {item}" for item in plan.get("manual_steps", [])[:5]),
+            *(
+                f"- {item}"
+                for item in (
+                    self._maintenance_troubleshooting_steps(plan, finding)
+                    if finding
+                    else plan.get("manual_steps", [])[:5]
+                )
+            ),
             "",
             "Recommended action:",
             action,

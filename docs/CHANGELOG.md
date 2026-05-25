@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Reworked maintenance backlog approval summaries so diagnostics-generated plans explain the troubleshooting logic, evidence, next learning step, and risk before showing the exact commands.
 - Added a Maintenance-page "Review & Approve Backlog Fix" shortcut and a matching Maintenance Findings dialog action that opens the next executable diagnostics-generated plan in the guarded approval dialog so users can type `APPROVE` without switching workflows.
 - Made Request Desk Pop/COSMIC bottom-bar investigations explain the evidence in plain language and prepare a narrow approved current-user COSMIC panel restart when duplicated panel-button processes or panel broken-pipe logs support that fix.
 - Removed `apt-get check` from user-level Pop/COSMIC evidence plans so guarded scans do not fail on the dpkg frontend lock; package metadata is collected with non-locking read-only commands instead.

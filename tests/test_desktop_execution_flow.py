@@ -178,6 +178,51 @@ class DesktopExecutionFlowTests(unittest.TestCase):
         self.assertTrue(any(event[0] == "dialog" and event[2] == "Review & Approve Next Fix" for event in events))
         self.assertIn(("review-next",), events)
 
+    def test_maintenance_plan_summary_explains_journal_troubleshooting_path(self):
+        window = SystemCoachWindow.__new__(SystemCoachWindow)
+        plan = {
+            "id": "plan-journal-errors",
+            "finding_id": "journal-errors",
+            "title": "Group recent critical log errors",
+            "risk": "low",
+            "reversible": True,
+            "requires_privilege": False,
+            "approval_required": True,
+            "execution_enabled": True,
+            "expected_effect": "Collect log context.",
+            "manual_steps": ["Group repeated log lines by service, device, or package."],
+            "rollback": [],
+            "action_contract": {
+                "execution_enabled": True,
+                "execution_mode": "user",
+                "fingerprint": "abc123",
+                "command_preview": ["journalctl -p 3 -n 100 --no-pager"],
+                "execution_gate": {"reasons": []},
+            },
+        }
+        window.current_maintenance = {
+            "findings": [
+                {
+                    "id": "journal-errors",
+                    "summary": "14 recent critical journal line(s) were found.",
+                    "evidence": {
+                        "line_count": 14,
+                        "sample": [
+                            "cosmic-panel: Broken pipe",
+                            "cosmic-applet-audio exited with code 137",
+                        ],
+                    },
+                }
+            ]
+        }
+
+        summary = SystemCoachWindow._plain_plan_summary(window, plan)
+
+        self.assertIn("Critical log lines are evidence, not a fix target", summary)
+        self.assertIn("Treat the critical log finding as a symptom", summary)
+        self.assertIn("Run a read-only journal query", summary)
+        self.assertIn("cosmic-panel: Broken pipe", summary)
+
 
 if __name__ == "__main__":
     unittest.main()
