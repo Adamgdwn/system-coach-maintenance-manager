@@ -1280,9 +1280,17 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         if hasattr(self, "execute_request_button"):
             self.execute_request_button.set_sensitive(sensitive and self.current_request_plan is not None)
 
-    def _show_action_dialog(self, title: str, body: str, entry_text: str | None = None) -> str | None:
+    def _show_action_dialog(
+        self,
+        title: str,
+        body: str,
+        entry_text: str | None = None,
+        action_label: str | None = None,
+    ) -> str | None:
         dialog = Gtk.Dialog(title=title, transient_for=self, modal=True)
         dialog.add_button("Close", Gtk.ResponseType.CLOSE)
+        if action_label:
+            dialog.add_button(action_label, Gtk.ResponseType.OK)
         dialog.set_default_size(780, 520)
         content = dialog.get_content_area()
         content.set_border_width(12)
@@ -1303,9 +1311,11 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             entry.set_editable(False)
             content.pack_start(entry, False, False, 8)
         dialog.show_all()
-        dialog.run()
+        response = dialog.run()
         value = entry.get_text() if entry else None
         dialog.destroy()
+        if action_label and response == Gtk.ResponseType.OK:
+            return "__action__"
         return value
 
     def _finding_for_plan(self, plan: dict) -> dict | None:
@@ -1483,7 +1493,25 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
                     ]
                 )
 
-        self._show_action_dialog("Maintenance Findings", "\n".join(sections).strip())
+        executable_backlog = self._maintenance_backlog_plans()
+        if executable_backlog:
+            sections.extend(
+                [
+                    "Ready for approval:",
+                    (
+                        "One or more maintenance backlog plans can execute now. "
+                        "Use Review & Approve Next Fix to inspect the next plan and type APPROVE if it looks right."
+                    ),
+                    "",
+                ]
+            )
+        response = self._show_action_dialog(
+            "Maintenance Findings",
+            "\n".join(sections).strip(),
+            action_label="Review & Approve Next Fix" if executable_backlog else None,
+        )
+        if response == "__action__":
+            GLib.idle_add(self.on_review_next_backlog_fix, None)
 
     def on_review_selected_action(self, _button: Gtk.Button | None) -> None:
         plan = self._selected_queued_plan()

@@ -150,6 +150,34 @@ class DesktopExecutionFlowTests(unittest.TestCase):
 
         self.assertTrue(any(event[0] == "dialog" and event[1] == "No Maintenance Backlog Yet" for event in events))
 
+    def test_maintenance_findings_dialog_offers_backlog_approval_action(self):
+        window = SystemCoachWindow.__new__(SystemCoachWindow)
+        events = []
+        plan = {
+            "id": "plan-journal-errors",
+            "title": "Group recent critical log errors",
+            "execution_enabled": True,
+            "action_contract": {"execution_enabled": True},
+        }
+        window.current_maintenance = {
+            "findings": [{"id": "journal-errors", "summary": "Critical logs found."}],
+            "action_plans": [plan],
+        }
+        window._plain_plan_summary = lambda _plan: "Plain plan summary"
+        window.on_review_next_backlog_fix = lambda _button: events.append(("review-next",))
+
+        def show_dialog(title, body, entry_text=None, action_label=None):
+            events.append(("dialog", title, action_label, body))
+            return "__action__"
+
+        window._show_action_dialog = show_dialog
+
+        with patch("system_coach_maintenance_manager.desktop_app.GLib.idle_add", side_effect=lambda callback, *args: callback(*args)):
+            SystemCoachWindow._show_maintenance_findings_dialog(window)
+
+        self.assertTrue(any(event[0] == "dialog" and event[2] == "Review & Approve Next Fix" for event in events))
+        self.assertIn(("review-next",), events)
+
 
 if __name__ == "__main__":
     unittest.main()
