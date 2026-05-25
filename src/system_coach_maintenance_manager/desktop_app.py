@@ -224,6 +224,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
     MIN_VIEWPORT_WIDTH = 720
     MIN_VIEWPORT_HEIGHT = 420
     NARROW_LAYOUT_WIDTH = 1120
+    REQUEST_BRAIN_TIMEOUT_SECONDS = 45
 
     def __init__(self, app: Gtk.Application):
         super().__init__(application=app, title="System Coach and Maintenance Manager")
@@ -241,6 +242,8 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self.queued_plans: list[dict] = []
         self.request_context: list[str] = []
         self.latest_request_reasoning: dict | None = None
+        self.active_request_brain_token: int | None = None
+        self.request_brain_sequence = 0
         self.pop_cosmic_scan: dict | None = None
         self.pop_cosmic_research: dict | None = None
         self.pop_cosmic_analysis: dict | None = None
@@ -1992,55 +1995,102 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
 
     def _start_request_brain(self, request_text: str, *, force_plan: bool = False) -> None:
         os_name, desktop_hint = self._request_environment_context()
+        self.request_brain_sequence += 1
+        token = self.request_brain_sequence
+        self.active_request_brain_token = token
         self.request_send_button.set_sensitive(False)
         self.prepare_request_button.set_sensitive(False)
         self.execute_request_button.set_sensitive(False)
         self._set_status("The local model is thinking through the request...")
+        GLib.timeout_add_seconds(self.REQUEST_BRAIN_TIMEOUT_SECONDS, self._request_brain_timeout, token, request_text, force_plan)
         threading.Thread(
             target=self._request_brain_worker,
-            args=(request_text, os_name, desktop_hint, self.current_maintenance, force_plan),
+            args=(token, request_text, os_name, desktop_hint, self.current_maintenance, force_plan),
             daemon=True,
         ).start()
 
     def _request_brain_worker(
         self,
+        token: int,
         request_text: str,
         os_name: str | None,
         desktop_hint: str | None,
         maintenance_report: dict | None,
         force_plan: bool,
     ) -> None:
-        evidence = collect_request_evidence(request_text, os_name=os_name, desktop_hint=desktop_hint)
-        history = load_history(limit=20)
-        reasoning = reason_about_request(
-            request_text,
-            os_name=os_name,
-            desktop_hint=desktop_hint,
-            maintenance_report=maintenance_report,
-            request_evidence=evidence,
-            learning_context=history.get("learning_notes", []) + history.get("known_good_lessons", []),
-        )
-        reasoning["request_evidence"] = evidence
-        if not reasoning.get("ok"):
-            fallback = review_request_intake(request_text)
-            fallback.update(
-                {
-                    "source": "deterministic-fallback",
-                    "model": None,
-                    "confidence": None,
-                    "alternate_families": [],
-                    "evidence_assessment": "Deterministic fallback used the request wording and collected read-only evidence only.",
-                    "investigation_steps": fallback.get("questions", []),
-                    "permission_plan": "Prepare an approval-required plan before executing any change.",
-                    "reasoning_summary": reasoning.get("reasoning_summary", ""),
-                    "model_error": reasoning.get("acknowledgement", "Local model request analysis was unavailable."),
-                    "request_evidence": evidence,
-                }
+        evidence = {}
+        try:
+            evidence = collect_request_evidence(request_text, os_name=os_name, desktop_hint=desktop_hint)
+            history = load_history(limit=20)
+            reasoning = reason_about_request(
+                request_text,
+                os_name=os_name,
+                desktop_hint=desktop_hint,
+                maintenance_report=maintenance_report,
+                request_evidence=evidence,
+                learning_context=history.get("learning_notes", []) + history.get("known_good_lessons", []),
             )
-            reasoning = fallback
-        GLib.idle_add(self._apply_request_brain_result, request_text, reasoning, force_plan)
+            reasoning["request_evidence"] = evidence
+            if not reasoning.get("ok"):
+                reasoning = self._request_fallback_reasoning(
+                    request_text,
+                    evidence,
+                    reasoning.get("acknowledgement", "Local model request analysis was unavailable."),
+                    reasoning.get("reasoning_summary", ""),
+                )
+        except Exception as exc:
+            reasoning = self._request_fallback_reasoning(
+                request_text,
+                evidence,
+                f"Request Desk local reasoning failed before a plan was prepared: {exc}",
+                "Request Desk worker failed and used deterministic fallback.",
+            )
+        GLib.idle_add(self._apply_request_brain_result, token, request_text, reasoning, force_plan)
 
-    def _apply_request_brain_result(self, request_text: str, reasoning: dict, force_plan: bool) -> bool:
+    def _request_brain_timeout(self, token: int, request_text: str, force_plan: bool) -> bool:
+        if self.active_request_brain_token != token:
+            return False
+        reasoning = self._request_fallback_reasoning(
+            request_text,
+            {},
+            (
+                f"The local model took longer than {self.REQUEST_BRAIN_TIMEOUT_SECONDS} seconds. "
+                "I restored the Request Desk controls and used deterministic fallback instead."
+            ),
+            "Request Desk local model timed out and deterministic fallback was used.",
+        )
+        self._apply_request_brain_result(token, request_text, reasoning, force_plan)
+        return False
+
+    def _request_fallback_reasoning(
+        self,
+        request_text: str,
+        evidence: dict,
+        model_error: str,
+        reasoning_summary: str,
+    ) -> dict:
+        fallback = review_request_intake(request_text)
+        fallback.update(
+            {
+                "ok": True,
+                "source": "deterministic-fallback",
+                "model": None,
+                "confidence": None,
+                "alternate_families": [],
+                "evidence_assessment": "Deterministic fallback used the request wording and any collected read-only evidence.",
+                "investigation_steps": fallback.get("questions", []),
+                "permission_plan": "Prepare an approval-required plan before executing any change.",
+                "reasoning_summary": reasoning_summary,
+                "model_error": model_error,
+                "request_evidence": evidence,
+            }
+        )
+        return fallback
+
+    def _apply_request_brain_result(self, token: int, request_text: str, reasoning: dict, force_plan: bool) -> bool:
+        if self.active_request_brain_token != token:
+            return False
+        self.active_request_brain_token = None
         self.latest_request_reasoning = reasoning
         self.request_send_button.set_sensitive(True)
         self.prepare_request_button.set_sensitive(True)
@@ -2055,7 +2105,11 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
 
         if reasoning.get("ready") or force_plan:
             self._append_request_message("Request Desk", f"{brain_label}: {reasoning['acknowledgement']}")
-            self._prepare_request_plan(request_text, reasoning=reasoning)
+            try:
+                self._prepare_request_plan(request_text, reasoning=reasoning)
+            except Exception as exc:
+                self._append_request_message("Request Desk", f"Plan preparation failed: {exc}")
+                self._set_status("Request Desk could not prepare a plan. The controls have been restored.")
             return False
 
         response_lines = [f"{brain_label}: {reasoning['acknowledgement']}", "", "I need one or two details:"]

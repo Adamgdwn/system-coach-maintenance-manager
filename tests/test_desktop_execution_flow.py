@@ -47,6 +47,34 @@ class DesktopExecutionFlowTests(unittest.TestCase):
         self.assertFalse(keep_callback)
         self.assertEqual(events[-1][0], "dialog")
 
+    def test_request_brain_timeout_restores_controls_with_fallback(self):
+        class Button:
+            def __init__(self):
+                self.states = []
+
+            def set_sensitive(self, value):
+                self.states.append(value)
+
+        window = SystemCoachWindow.__new__(SystemCoachWindow)
+        events = []
+        window.REQUEST_BRAIN_TIMEOUT_SECONDS = 1
+        window.active_request_brain_token = 7
+        window.current_request_plan = None
+        window.request_send_button = Button()
+        window.prepare_request_button = Button()
+        window.execute_request_button = Button()
+        window._append_request_message = lambda speaker, text: events.append(("message", speaker, text))
+        window._set_status = lambda status: events.append(("status", status))
+
+        keep_timer = SystemCoachWindow._request_brain_timeout(window, 7, "help", False)
+
+        self.assertFalse(keep_timer)
+        self.assertIsNone(window.active_request_brain_token)
+        self.assertEqual(window.request_send_button.states[-1], True)
+        self.assertEqual(window.prepare_request_button.states[-1], True)
+        self.assertEqual(window.execute_request_button.states[-1], False)
+        self.assertTrue(any("longer than 1 seconds" in event[2] for event in events if event[0] == "message"))
+
 
 if __name__ == "__main__":
     unittest.main()
