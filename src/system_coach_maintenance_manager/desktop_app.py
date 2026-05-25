@@ -128,6 +128,15 @@ window {
   color: #705d43;
 }
 
+.inline-working {
+  padding: 8px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(191, 95, 47, 0.22);
+  background-color: rgba(255, 250, 243, 0.94);
+  color: #bf5f2f;
+  font-weight: 900;
+}
+
 button {
   min-height: 38px;
   padding: 8px 16px;
@@ -281,7 +290,9 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self.pop_cosmic_plan: dict | None = None
         self.pop_cosmic_result: dict | None = None
         self.working_pulse_id: int | None = None
+        self.working_hide_pending_id: int | None = None
         self.working_pulse_step = 0
+        self.working_visible_until: dt.datetime | None = None
 
         self.app_overlay = Gtk.Overlay()
         self.app_overlay.set_hexpand(True)
@@ -366,6 +377,14 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         status_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         status_row.pack_start(self.status_label, True, True, 0)
         status_row.pack_start(self.engine_label, True, True, 0)
+        self.inline_working_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self._add_class(self.inline_working_box, "inline-working")
+        self.inline_working_box.set_no_show_all(True)
+        self.inline_working_spinner = Gtk.Spinner()
+        self.inline_working_box.pack_start(self.inline_working_spinner, False, False, 0)
+        self.inline_working_label = Gtk.Label(label="\u2623 Working")
+        self.inline_working_box.pack_start(self.inline_working_label, False, False, 0)
+        status_row.pack_start(self.inline_working_box, False, False, 0)
         root.pack_start(status_row, False, False, 0)
 
         self.content_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
@@ -917,11 +936,27 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
     def _show_working_drama(self, title: str, detail: str = "") -> bool:
         if not hasattr(self, "working_box"):
             return False
+        self.working_visible_until = dt.datetime.now() + dt.timedelta(seconds=1.2)
+        if self.working_hide_pending_id is not None:
+            try:
+                GLib.source_remove(self.working_hide_pending_id)
+            except Exception:
+                pass
+            self.working_hide_pending_id = None
         self.working_title_label.set_text(title)
         self.working_detail_label.set_text(detail)
+        if hasattr(self, "inline_working_label"):
+            self.inline_working_label.set_text(f"\u2623 {title}")
         self.working_pulse_step = 0
         self.working_spinner.start()
+        if hasattr(self, "inline_working_spinner"):
+            self.inline_working_spinner.start()
+        if hasattr(self, "inline_working_box"):
+            self.inline_working_box.show_all()
         self.working_box.show_all()
+        self.working_box.queue_draw()
+        if hasattr(self, "app_overlay"):
+            self.app_overlay.queue_draw()
         if self.working_pulse_id is not None:
             try:
                 GLib.source_remove(self.working_pulse_id)
@@ -930,7 +965,24 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self.working_pulse_id = GLib.timeout_add(140, self._pulse_working_symbol)
         return False
 
-    def _hide_working_drama(self) -> bool:
+    def _hide_working_drama_after_minimum(self) -> bool:
+        self.working_hide_pending_id = None
+        return self._hide_working_drama(force=True)
+
+    def _hide_working_drama(self, force: bool = False) -> bool:
+        if not force and self.working_visible_until is not None:
+            remaining = (self.working_visible_until - dt.datetime.now()).total_seconds()
+            if remaining > 0:
+                if self.working_hide_pending_id is None:
+                    self.working_hide_pending_id = GLib.timeout_add(int(remaining * 1000) + 50, self._hide_working_drama_after_minimum)
+                return False
+        self.working_visible_until = None
+        if self.working_hide_pending_id is not None:
+            try:
+                GLib.source_remove(self.working_hide_pending_id)
+            except Exception:
+                pass
+            self.working_hide_pending_id = None
         if self.working_pulse_id is not None:
             try:
                 GLib.source_remove(self.working_pulse_id)
@@ -939,8 +991,12 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             self.working_pulse_id = None
         if hasattr(self, "working_spinner"):
             self.working_spinner.stop()
+        if hasattr(self, "inline_working_spinner"):
+            self.inline_working_spinner.stop()
         if hasattr(self, "working_box"):
             self.working_box.hide()
+        if hasattr(self, "inline_working_box"):
+            self.inline_working_box.hide()
         return False
 
     def _append_text(self, view: Gtk.TextView, text: str) -> None:
