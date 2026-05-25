@@ -172,11 +172,12 @@ class DesktopExecutionFlowTests(unittest.TestCase):
 
         window._show_action_dialog = show_dialog
 
-        with patch("system_coach_maintenance_manager.desktop_app.GLib.idle_add", side_effect=lambda callback, *args: callback(*args)):
+        with patch("system_coach_maintenance_manager.desktop_app.GLib.idle_add") as idle_add:
             SystemCoachWindow._show_maintenance_findings_dialog(window)
 
         self.assertTrue(any(event[0] == "dialog" and event[2] == "Review & Approve Next Fix" for event in events))
         self.assertIn(("review-next",), events)
+        idle_add.assert_not_called()
 
     def test_maintenance_plan_summary_explains_journal_troubleshooting_path(self):
         window = SystemCoachWindow.__new__(SystemCoachWindow)
@@ -290,17 +291,40 @@ class DesktopExecutionFlowTests(unittest.TestCase):
             def start(self):
                 self.target(*self.args)
 
+        class Label:
+            def set_text(self, text):
+                events.append(("gate", text))
+
+        class Notebook:
+            def page_num(self, page):
+                events.append(("page-num", page))
+                return 6
+
+            def set_current_page(self, page_number):
+                events.append(("page", page_number))
+
         window = SystemCoachWindow.__new__(SystemCoachWindow)
         events = []
+        approval_page = object()
+        approval_selected_view = object()
         plan = {
             "id": "plan-journal-errors",
             "finding_id": "journal-errors",
             "title": "Group recent critical log errors",
             "manual_steps": [],
-            "action_contract": {"execution_enabled": True, "execution_mode": "user"},
+            "action_contract": {
+                "execution_enabled": True,
+                "execution_mode": "user",
+                "command_preview": ["journalctl -p 3 -n 100 --no-pager"],
+            },
         }
         finding = {"id": "journal-errors", "summary": "Critical logs found.", "evidence": {}}
         window.current_maintenance = {"findings": [finding]}
+        window.notebook = Notebook()
+        window.approval_page = approval_page
+        window.approval_selected_view = approval_selected_view
+        window.execution_gate_label = Label()
+        window._set_text = lambda view, text: events.append(("text", view, text))
         window._set_execution_buttons_sensitive = lambda sensitive: events.append(("buttons", sensitive))
         window._set_status = lambda status: events.append(("status", status))
         window._refresh_selected_plan_preview = lambda: events.append(("preview",))
@@ -319,6 +343,15 @@ class DesktopExecutionFlowTests(unittest.TestCase):
 
         reason.assert_called_once()
         self.assertEqual(plan["maintenance_reasoning"]["source"], "local-model")
+        self.assertIn(("page", 6), events)
+        self.assertTrue(
+            any(
+                event[0] == "text"
+                and event[1] is approval_selected_view
+                and "Thinking through this maintenance plan before approval" in event[2]
+                for event in events
+            )
+        )
         self.assertIn(("start", "local-model"), events)
 
 

@@ -1166,6 +1166,16 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
                 self.approval_plan_picker.set_active(index)
                 return
 
+    def _show_approval_queue_page(self) -> None:
+        if not hasattr(self, "notebook") or not hasattr(self, "approval_page"):
+            return
+        try:
+            page_number = self.notebook.page_num(self.approval_page)
+        except Exception:
+            return
+        if page_number is not None and page_number >= 0:
+            self.notebook.set_current_page(page_number)
+
     def on_review_next_backlog_fix(self, _button: Gtk.Button | None) -> None:
         if not self.current_maintenance:
             self._set_status("Run maintenance diagnostics before reviewing backlog fixes.")
@@ -1188,6 +1198,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self._refresh_approval_queue()
         plan = executable_backlog[0]
         self._select_plan_in_approval_queue(plan)
+        self._show_approval_queue_page()
         self._set_status("Thinking through the next maintenance backlog plan before approval...")
         self._start_plan_execution_with_reasoning(plan)
 
@@ -1673,7 +1684,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             action_label="Review & Approve Next Fix" if executable_backlog else None,
         )
         if response == "__action__":
-            GLib.idle_add(self.on_review_next_backlog_fix, None)
+            self.on_review_next_backlog_fix(None)
 
     def on_review_selected_action(self, _button: Gtk.Button | None) -> None:
         plan = self._selected_queued_plan()
@@ -1728,9 +1739,39 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         if not finding or plan.get("maintenance_reasoning"):
             self._start_plan_execution(plan)
             return
+        self._show_approval_queue_page()
+        self._show_pending_maintenance_reasoning(plan, finding)
         self._set_execution_buttons_sensitive(False)
         self._set_status("Using the local reasoning brain to review the maintenance plan before approval...")
         threading.Thread(target=self._maintenance_reasoning_worker, args=(plan, finding), daemon=True).start()
+
+    def _show_pending_maintenance_reasoning(self, plan: dict, finding: dict) -> None:
+        if hasattr(self, "execution_gate_label"):
+            self.execution_gate_label.set_text(
+                "Review is in progress. The approval dialog will open after the reasoning pass finishes."
+            )
+        if not hasattr(self, "approval_selected_view"):
+            return
+        contract = plan.get("action_contract") or {}
+        lines = [
+            "Thinking through this maintenance plan before approval...",
+            "",
+            "Working problem:",
+            finding.get("summary") or plan.get("title", "Maintenance finding needs review."),
+            "",
+            "What I am checking now:",
+            "- Whether the finding matches the command preview",
+            "- Whether there are safer explanations or narrower checks first",
+            "- Whether the expected effect, rollback, and stop conditions are clear",
+            "- Whether this should stay user-level or require stronger approval",
+            "",
+            "Selected command preview:",
+            *(f"- {command}" for command in contract.get("command_preview", []) or ["No command preview is available."]),
+            "",
+            "Next step:",
+            "The guarded approval dialog will open when this review finishes. Nothing is executing yet.",
+        ]
+        self._set_text(self.approval_selected_view, "\n".join(lines))
 
     def _maintenance_reasoning_worker(self, plan: dict, finding: dict) -> None:
         try:
