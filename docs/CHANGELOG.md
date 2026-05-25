@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Treated non-root `apt-get check` dpkg lock permission denials as a normal Linux permission boundary when `dpkg --audit` is clean, preventing repeated false package-health repair loops after an approved elevated check succeeds.
+- Tightened post-execute local-model guidance so a clean approved `apt-get check` cannot be turned into stale-lock or lock-removal advice without real stale-lock evidence.
 - Added a pre-approval maintenance reasoning pass that uses the local model ladder and local history to review diagnostics-generated backlog plans before showing the `APPROVE` dialog, with deterministic fallback when the model is unavailable.
 - Reworked maintenance backlog approval summaries so diagnostics-generated plans explain the troubleshooting logic, evidence, next learning step, and risk before showing the exact commands.
 - Added a Maintenance-page "Review & Approve Backlog Fix" shortcut and a matching Maintenance Findings dialog action that opens the next executable diagnostics-generated plan in the guarded approval dialog so users can type `APPROVE` without switching workflows.

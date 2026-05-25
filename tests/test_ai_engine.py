@@ -306,6 +306,31 @@ class AiEngineTests(unittest.TestCase):
         self.assertEqual(result["model"], "qwen3:8b")
         self.assertIn("DisplayLink", result["analysis"])
 
+    def test_analyze_action_result_warns_against_stale_dpkg_lock_guess_after_clean_check(self):
+        with patch(
+            "system_coach_maintenance_manager.ai_engine._get_json",
+            return_value={"models": [{"name": "qwen3:8b"}]},
+        ), patch(
+            "system_coach_maintenance_manager.ai_engine._post_json",
+            return_value={"response": "What I found\napt-get check completed cleanly."},
+        ) as post_json:
+            analyze_action_result(
+                {
+                    "title": "Review apt package health",
+                    "family": "package-manager-health",
+                    "finding": {
+                        "evidence": {
+                            "output": "Unable to acquire the dpkg frontend lock (/var/lib/dpkg/lock-frontend), are you root?"
+                        }
+                    },
+                },
+                {"status": "completed", "output": "Reading package lists...\nBuilding dependency tree..."},
+            )
+
+        prompt = post_json.call_args.args[1]["prompt"]
+        self.assertIn("normal permission boundary", prompt)
+        self.assertIn("Never recommend removing /var/lib/dpkg lock files after a successful apt-get check", prompt)
+
 
 if __name__ == "__main__":
     unittest.main()

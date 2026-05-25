@@ -53,6 +53,15 @@ def _run_command(args: list[str], timeout: int = DIAGNOSTIC_COMMAND_TIMEOUT) -> 
         }
 
 
+def _is_non_root_apt_lock_denial(output: str) -> bool:
+    normalized = output.lower()
+    return (
+        "/var/lib/dpkg/lock-frontend" in normalized
+        and "permission denied" in normalized
+        and ("are you root" in normalized or "unable to acquire the dpkg frontend lock" in normalized)
+    )
+
+
 def _command_available(command: str) -> dict:
     resolved = shutil.which(command)
     return {"command": command, "present": resolved is not None, "path": resolved}
@@ -644,6 +653,42 @@ def _package_finding(os_name: str) -> dict:
     manager = present[0]["command"]
     if manager == "apt-get":
         command = _run_command(["apt-get", "check"])
+        if command["exit_code"] != 0 and _is_non_root_apt_lock_denial(command["output"]):
+            audit = _run_command(["dpkg", "--audit"]) if _command_available("dpkg")["present"] else None
+            commands = [command]
+            if audit:
+                commands.append(audit)
+            if audit and audit["exit_code"] == 0 and not audit["output"].strip():
+                return _finding(
+                    check_id="package-manager-health",
+                    title="Package Manager Health",
+                    category="packages",
+                    status="pass",
+                    severity="info",
+                    summary=(
+                        "apt-get check needs administrator approval on this system; "
+                        "the non-locking dpkg audit did not report package database problems."
+                    ),
+                    evidence={
+                        "manager": manager,
+                        "output": command["output"][:800],
+                        "dpkg_audit_output": audit["output"][:800],
+                        "non_root_lock_denial": True,
+                    },
+                    next_steps=[
+                        "Treat the apt lock message as a normal non-root permission boundary unless an elevated check fails.",
+                        "Use an approved elevated package health plan only if update or install symptoms persist.",
+                    ],
+                    commands=commands,
+                    can_prepare_action=False,
+                )
+            if audit and audit["exit_code"] != 0:
+                command = {
+                    "command": f"{command['command']} && {audit['command']}",
+                    "exit_code": audit["exit_code"],
+                    "output": audit["output"],
+                    "duration_ms": command["duration_ms"] + audit["duration_ms"],
+                }
     elif manager == "dnf":
         command = _run_command(["dnf", "check"])
     elif manager == "winget":

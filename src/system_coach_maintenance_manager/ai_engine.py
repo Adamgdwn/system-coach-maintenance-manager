@@ -619,6 +619,8 @@ def analyze_action_result(plan: dict, result: dict) -> dict[str, Any]:
             "Use the command output to explain what was found and the best next fix direction.",
             "Do not invent commands. Do not claim a fix was applied unless the result shows it.",
             "If the action only collected evidence, reassess the original hypothesis. Say what supports it, what contradicts it, and what the next guarded fix or investigation lane should be.",
+            "For apt/dpkg evidence: if an approved elevated apt-get check completed successfully, treat earlier non-root dpkg lock permission errors as a normal permission boundary, not a stale or corrupted lock.",
+            "Never recommend removing /var/lib/dpkg lock files after a successful apt-get check. Only discuss lock removal when command output proves no apt/dpkg process is active and the lock is stale.",
             "Write plain text with these short sections:",
             "What I found",
             "Hypothesis check",
