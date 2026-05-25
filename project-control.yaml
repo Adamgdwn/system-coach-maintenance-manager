@@ -78,7 +78,7 @@ agent_controls:
     - local-ai-coach-system-prompt
     - gemma-request-desk-reasoning-prompt
 pop_cosmic_agent:
-  web_research_enabled: false
+  web_research_enabled: true
   allowed_domains:
     - system76.com
     - support.system76.com
@@ -90,6 +90,10 @@ pop_cosmic_agent:
     - deepmind.google
     - ollama.com
   searxng_url: ""
+  research_provider: perplexity
+  perplexity_api_key_env_var: PERPLEXITY_API_KEY
+  perplexity_model_env_var: PERPLEXITY_MODEL
+  master_env_path: /home/adamgoodwin/code/.env.master
   max_results_per_query: 8
   cache_ttl_days: 14
   mode: guided-fix

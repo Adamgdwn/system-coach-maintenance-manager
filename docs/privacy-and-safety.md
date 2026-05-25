@@ -23,11 +23,11 @@ Nothing leaves the machine by default except when the user enables an external p
 
 - Local Ollama mode sends prompts to the local Ollama API on the configured local URL.
 - Bring-your-own-key cloud mode may send prompts and selected context to the configured provider after the user explicitly enables it.
-- Pop/COSMIC live web research is disabled unless project controls enable it and the request opts in. Safe research queries use sanitized symptom/profile facts, not raw logs.
+- Pop/COSMIC live web research may send sanitized symptom/profile queries to the governed research provider when `project-control.yaml` enables it. This repo can use Perplexity with `PERPLEXITY_API_KEY` from the configured master environment file. Raw logs and API keys are not sent as research query text.
 
 ## Secrets
 
-Raw API keys are never saved by the app. Model provider setup stores only an environment variable name such as `OPENAI_API_KEY`. Reports, history, provider status, and capability profiles should expose only whether that environment variable is present.
+Raw API keys are never saved by the app. Model provider setup stores only an environment variable name such as `OPENAI_API_KEY`; Pop/COSMIC research stores only names such as `PERPLEXITY_API_KEY` plus an optional master env file path. Reports, history, provider status, and capability profiles should expose only whether that environment variable is present.
 
 ## Action Safety
 
@@ -43,4 +43,4 @@ Executable actions are governed by several gates:
 
 ## User Controls
 
-Users can avoid external model calls by selecting deterministic fallback mode or local model mode without cloud configuration. Users can avoid live research by leaving `pop_cosmic_agent.web_research_enabled` disabled in `project-control.yaml`. Users can move local history and provider config paths with environment variables before launching the app.
+Users can avoid external model calls by selecting deterministic fallback mode or local model mode without cloud configuration. Users can avoid live research by setting `pop_cosmic_agent.web_research_enabled: false` in `project-control.yaml`. Users can move local history and provider config paths with environment variables before launching the app.

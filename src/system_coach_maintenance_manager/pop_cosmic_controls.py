@@ -38,6 +38,10 @@ def load_pop_cosmic_controls(project_control_path: Path | None = None) -> dict:
         "web_research_enabled": False,
         "allowed_domains": list(DEFAULT_ALLOWED_DOMAINS),
         "searxng_url": "",
+        "research_provider": "official",
+        "perplexity_api_key_env_var": "PERPLEXITY_API_KEY",
+        "perplexity_model_env_var": "PERPLEXITY_MODEL",
+        "master_env_path": "",
         "max_results_per_query": 8,
         "cache_ttl_days": 14,
         "mode": "guided-fix",
@@ -77,6 +81,14 @@ def load_pop_cosmic_controls(project_control_path: Path | None = None) -> dict:
             controls["web_research_enabled"] = _parse_bool(value)
         elif key == "searxng_url":
             controls["searxng_url"] = value
+        elif key == "research_provider":
+            controls["research_provider"] = value or "official"
+        elif key == "perplexity_api_key_env_var":
+            controls["perplexity_api_key_env_var"] = value or "PERPLEXITY_API_KEY"
+        elif key == "perplexity_model_env_var":
+            controls["perplexity_model_env_var"] = value or "PERPLEXITY_MODEL"
+        elif key == "master_env_path":
+            controls["master_env_path"] = value
         elif key == "max_results_per_query":
             controls["max_results_per_query"] = _parse_int(value, 8)
         elif key == "cache_ttl_days":
@@ -88,5 +100,8 @@ def load_pop_cosmic_controls(project_control_path: Path | None = None) -> dict:
         controls["allowed_domains"] = allowed_domains
     controls["loaded"] = True
     if controls["web_research_enabled"]:
-        controls["governance_reason"] = "Project controls allow live Pop/COSMIC web research when the request also opts in."
+        controls["governance_reason"] = (
+            f"Project controls allow live Pop/COSMIC web research through {controls['research_provider']} "
+            "when the request also opts in."
+        )
     return controls

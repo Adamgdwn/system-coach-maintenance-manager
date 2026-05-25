@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -7,6 +8,7 @@ from system_coach_maintenance_manager.pop_cosmic_controls import load_pop_cosmic
 from system_coach_maintenance_manager.pop_cosmic_research import (
     GitHubCosmicProvider,
     OfficialSystem76Provider,
+    PerplexityResearchProvider,
     research_pop_cosmic_issue,
     research_url_allowed,
     safe_research_query,
@@ -23,7 +25,7 @@ class _FakeResponse:
     def __exit__(self, exc_type, exc, tb):
         return False
 
-    def read(self):
+    def read(self, _size=None):
         return self.text.encode("utf-8")
 
 
@@ -64,6 +66,10 @@ class PopCosmicResearchTests(unittest.TestCase):
                         "    - system76.com",
                         "    - github.com/pop-os",
                         "    - api.github.com/repos/pop-os",
+                        "  research_provider: perplexity",
+                        "  perplexity_api_key_env_var: PERPLEXITY_API_KEY",
+                        "  perplexity_model_env_var: PERPLEXITY_MODEL",
+                        "  master_env_path: /tmp/master.env",
                         "  max_results_per_query: 3",
                         "  cache_ttl_days: 2",
                         "  mode: guided-fix",
@@ -75,6 +81,10 @@ class PopCosmicResearchTests(unittest.TestCase):
 
         self.assertTrue(controls["web_research_enabled"])
         self.assertEqual(controls["allowed_domains"], ["system76.com", "github.com/pop-os", "api.github.com/repos/pop-os"])
+        self.assertEqual(controls["research_provider"], "perplexity")
+        self.assertEqual(controls["perplexity_api_key_env_var"], "PERPLEXITY_API_KEY")
+        self.assertEqual(controls["perplexity_model_env_var"], "PERPLEXITY_MODEL")
+        self.assertEqual(controls["master_env_path"], "/tmp/master.env")
         self.assertEqual(controls["max_results_per_query"], 3)
         self.assertEqual(controls["cache_ttl_days"], 2)
 
@@ -122,6 +132,81 @@ class PopCosmicResearchTests(unittest.TestCase):
             records = provider.search("Pop!_OS COSMIC panel", max_results=8)
 
         self.assertEqual([record["title"] for record in records], ["Good"])
+
+    def test_perplexity_search_uses_master_env_and_filters_allowed_urls(self):
+        provider = PerplexityResearchProvider(
+            enabled=True,
+            allowed_domains=("support.system76.com", "github.com/pop-os"),
+            master_env_path="/tmp/master.env",
+        )
+        payload = json.dumps(
+            {
+                "choices": [{"message": {"content": "Panel applets may need COSMIC panel investigation."}}],
+                "search_results": [
+                    {
+                        "title": "Allowed support result",
+                        "url": "https://support.system76.com/articles/package-manager-pop/",
+                        "snippet": "Official support article.",
+                    },
+                    {
+                        "title": "Rejected result",
+                        "url": "https://example.com/cosmic-panel",
+                        "snippet": "Untrusted.",
+                    },
+                ],
+                "citations": ["https://github.com/pop-os/cosmic-panel/issues/1", "https://example.com/nope"],
+            }
+        )
+
+        with patch("system_coach_maintenance_manager.pop_cosmic_research._read_env_file_value") as read_env, patch(
+            "system_coach_maintenance_manager.pop_cosmic_research.urllib.request.urlopen",
+            return_value=_FakeResponse(payload),
+        ) as urlopen:
+            read_env.side_effect = lambda _path, key: "pplx-test" if key == "PERPLEXITY_API_KEY" else "sonar-pro"
+            records = provider.search("Pop!_OS COSMIC bottom bar icons", max_results=8)
+
+        self.assertTrue(any(record["provider"] == "perplexity" for record in records))
+        self.assertTrue(any(record["url"] == "https://support.system76.com/articles/package-manager-pop/" for record in records))
+        self.assertTrue(any(record["url"] == "https://github.com/pop-os/cosmic-panel/issues/1" for record in records))
+        self.assertFalse(any(record["url"] == "https://example.com/cosmic-panel" for record in records))
+        request = urlopen.call_args.args[0]
+        self.assertEqual(request.headers["Authorization"], "Bearer pplx-test")
+
+    def test_perplexity_research_mode_records_live_provider(self):
+        profile = {"pop_version": "24.04"}
+        records = [
+            {
+                "source_id": "perplexity-1",
+                "provider": "perplexity",
+                "title": "COSMIC panel research",
+                "url": "https://support.system76.com/articles/package-manager-pop/",
+                "published_or_updated": "unknown",
+                "retrieved_at": "2026-05-24T09:00:00",
+                "trust_level": "allowed-web",
+                "summary": "Research summary",
+                "relevant_evidence": [],
+                "risk_notes": [],
+                "applies_to": {"pop_version": "unknown", "cosmic_version": "unknown", "hardware": "unknown"},
+                "record_mode": "live-web-search",
+            }
+        ]
+
+        with patch(
+            "system_coach_maintenance_manager.pop_cosmic_research.PerplexityResearchProvider.search",
+            return_value=records,
+        ) as perplexity_search:
+            result = research_pop_cosmic_issue(
+                "COSMIC panel icons cannot be selected",
+                profile,
+                enabled=True,
+                research_provider="perplexity",
+                allowed_domains=["support.system76.com"],
+                perplexity_config={"master_env_path": "/tmp/master.env"},
+            )
+
+        self.assertEqual(result["research_mode"], "live-web-perplexity-search")
+        self.assertTrue(any(record["provider"] == "perplexity" for record in result["records"]))
+        perplexity_search.assert_called_once()
 
 
 if __name__ == "__main__":

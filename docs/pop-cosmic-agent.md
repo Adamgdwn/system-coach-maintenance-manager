@@ -46,11 +46,11 @@ Scan output is capped and redacted for user paths, hostnames, and obvious tokens
 
 ## Research
 
-Web research is disabled by default. The initial research layer records trusted official sources without fetching remote page text unless research is explicitly enabled by project controls and the current request opts in. Safe research queries are built from the user symptom and sanitized profile facts, not raw logs.
+Web research is controlled by `project-control.yaml`. This repository can enable governed live research through Perplexity using the `PERPLEXITY_API_KEY` and `PERPLEXITY_MODEL` variables from the configured master environment file. Safe research queries are built from the user symptom and sanitized profile facts, not raw logs.
 
 The local API treats `project-control.yaml` as the source of truth for live Pop/COSMIC web research. Browser or API payloads cannot turn live research on when `pop_cosmic_agent.web_research_enabled` is `false`. Research responses include the effective mode, governance reason, and whether records are local/manual notes, official-source metadata, live web search, or live web fetch records.
 
-Highest-trust sources are official System76 docs, System76 blog/release notes, and official Pop/COSMIC GitHub sources. Live fetches are HTTPS-only and restricted to official System76 hosts plus path-aware `pop-os` GitHub repository URLs. Community sources may be useful later, but should not justify risky fixes by themselves.
+Highest-trust sources are official System76 docs, System76 blog/release notes, and official Pop/COSMIC GitHub sources. Perplexity search is constrained with the configured allowed-domain filter, and stored research records keep provider, query, source URL, trust level, risk notes, and summary. Community or synthesized search results may be useful context, but they cannot justify risky fixes by themselves.
 
 ## Local Models
 
@@ -84,3 +84,5 @@ Blocked recommendations are shown as human-readable escalation paths with next s
 ## Verification And Lessons
 
 After execution, the agent can run a verification scan and save a local lesson under the Pop/COSMIC lesson cache. Lessons record the action result, action commands, post-scan evidence, and whether the user confirmed improvement. A completed command is stored as `completed_unconfirmed` until the user explicitly confirms the symptom improved. Lessons are retrieval records, not model fine-tuning.
+
+Research records, action results, verification lessons, and learning notes form the self-improvement loop. Later Pop/COSMIC analysis loads relevant cached research and lessons for similar symptoms so the agent can avoid repeating failed paths, prefer evidence-backed fixes, and update its next recommendation after verification. The loop remains local retrieval and history, not autonomous retraining.

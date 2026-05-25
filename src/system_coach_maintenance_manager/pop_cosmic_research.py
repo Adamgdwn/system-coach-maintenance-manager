@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import datetime as dt
 import json
+import os
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -91,8 +92,24 @@ def research_url_allowed(url: str) -> bool:
 
 
 def _domain_allowed(url: str, allowed_domains: tuple[str, ...] = ALLOWED_DOMAINS) -> bool:
-    del allowed_domains
-    return research_url_allowed(url)
+    if research_url_allowed(url):
+        return True
+    try:
+        parsed = _parsed_https_url(url)
+    except ValueError:
+        return False
+    host = parsed.netloc.lower()
+    path = "/" + "/".join(_path_segments(parsed.path))
+    for allowed in allowed_domains:
+        allowed = allowed.strip().lower()
+        if not allowed:
+            continue
+        allowed_parsed = urllib.parse.urlparse(allowed if "://" in allowed else f"https://{allowed}")
+        allowed_host = allowed_parsed.netloc.lower()
+        allowed_path = "/" + "/".join(_path_segments(allowed_parsed.path))
+        if host == allowed_host and (allowed_path == "/" or path.startswith(allowed_path)):
+            return True
+    return False
 
 
 def _source_record(
@@ -239,6 +256,175 @@ class GitHubCosmicProvider(ResearchProvider):
         )
 
 
+def _read_env_file_value(path: str, variable_name: str) -> str:
+    if not path:
+        return ""
+    env_path = os.path.expanduser(path)
+    if not os.path.exists(env_path):
+        return ""
+    try:
+        lines = open(env_path, encoding="utf-8").read().splitlines()
+    except OSError:
+        return ""
+    for raw_line in lines:
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        key = key.strip().removeprefix("export ").strip()
+        if key != variable_name:
+            continue
+        value = value.strip().strip("\"'")
+        return value
+    return ""
+
+
+def _secret_from_env_or_master(variable_name: str, master_env_path: str) -> str:
+    return os.environ.get(variable_name, "").strip() or _read_env_file_value(master_env_path, variable_name).strip()
+
+
+@dataclass
+class PerplexityResearchProvider(ResearchProvider):
+    enabled: bool = False
+    allowed_domains: tuple[str, ...] = ALLOWED_DOMAINS
+    api_key_env_var: str = "PERPLEXITY_API_KEY"
+    model_env_var: str = "PERPLEXITY_MODEL"
+    master_env_path: str = ""
+    default_model: str = "sonar-pro"
+
+    def _api_key(self) -> str:
+        return _secret_from_env_or_master(self.api_key_env_var, self.master_env_path)
+
+    def _model(self) -> str:
+        return _secret_from_env_or_master(self.model_env_var, self.master_env_path) or self.default_model
+
+    def search(self, query: str, *, max_results: int = 8) -> list[dict]:
+        if not self.enabled:
+            return []
+        secret_token = self._api_key()
+        if not secret_token:
+            return [
+                _source_record(
+                    source_id="perplexity-key-missing",
+                    provider="perplexity",
+                    title="Perplexity API key unavailable",
+                    url="https://docs.perplexity.ai/",
+                    trust_level="provider-config",
+                    summary=f"Live Perplexity research is enabled, but {self.api_key_env_var} was not found in the environment or master env file.",
+                    risk_notes=["No remote research call was made."],
+                    record_mode="live-web-unavailable",
+                )
+            ]
+
+        payload = {
+            "model": self._model(),
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "Research Pop!_OS and COSMIC desktop troubleshooting using concise, source-grounded findings. "
+                        "Prefer official System76 and Pop!_OS GitHub sources. Do not recommend destructive fixes."
+                    ),
+                },
+                {"role": "user", "content": query},
+            ],
+            "temperature": 0.1,
+            "max_tokens": 900,
+            "search_domain_filter": list(self.allowed_domains)[:20],
+        }
+        request = urllib.request.Request(
+            "https://api.perplexity.ai/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Authorization": f"Bearer {secret_token}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                data = json.loads(response.read().decode("utf-8"))
+        except (urllib.error.URLError, json.JSONDecodeError) as exc:
+            return [
+                _source_record(
+                    source_id="perplexity-request-failed",
+                    provider="perplexity",
+                    title="Perplexity research request failed",
+                    url="https://docs.perplexity.ai/",
+                    trust_level="provider-config",
+                    summary=f"Perplexity research failed: {exc}",
+                    risk_notes=["No external research result was trusted for this run."],
+                    record_mode="live-web-error",
+                )
+            ]
+
+        answer = (
+            (data.get("choices") or [{}])[0]
+            .get("message", {})
+            .get("content", "")
+            .strip()
+        )
+        records = []
+        if answer:
+            records.append(
+                _source_record(
+                    source_id=f"perplexity-answer-{abs(hash(answer))}",
+                    provider="perplexity",
+                    title="Perplexity source-grounded research summary",
+                    url="https://www.perplexity.ai/",
+                    trust_level="search-synthesis",
+                    summary=answer,
+                    relevant_evidence=[query],
+                    risk_notes=["Treat synthesis as a research aid; verify risky fixes against cited sources and guarded catalogs."],
+                    record_mode="live-web-search",
+                )
+            )
+
+        seen_urls = set()
+        result_items = data.get("search_results") or []
+        for item in result_items:
+            url = str(item.get("url", "")).strip()
+            if not url or url in seen_urls or not _domain_allowed(url, self.allowed_domains):
+                continue
+            seen_urls.add(url)
+            records.append(
+                _source_record(
+                    source_id=f"perplexity-result-{abs(hash(url))}",
+                    provider="perplexity",
+                    title=item.get("title") or url,
+                    url=url,
+                    published_or_updated=item.get("date") or "unknown",
+                    trust_level="allowed-web",
+                    summary=item.get("snippet") or item.get("title") or "Allowed Perplexity search result.",
+                    relevant_evidence=[query],
+                    record_mode="live-web-search",
+                )
+            )
+            if len(records) >= max_results:
+                break
+
+        for url in data.get("citations", []):
+            url = str(url).strip()
+            if not url or url in seen_urls or not _domain_allowed(url, self.allowed_domains):
+                continue
+            seen_urls.add(url)
+            records.append(
+                _source_record(
+                    source_id=f"perplexity-citation-{abs(hash(url))}",
+                    provider="perplexity",
+                    title=url,
+                    url=url,
+                    trust_level="allowed-web",
+                    summary="Allowed Perplexity citation for the source-grounded answer.",
+                    relevant_evidence=[query],
+                    record_mode="live-web-search",
+                )
+            )
+            if len(records) >= max_results:
+                break
+        return records[:max_results]
+
+    def fetch(self, url: str) -> dict:
+        raise ValueError("Perplexity provider supports source-grounded search records, not arbitrary URL fetches.")
+
+
 @dataclass
 class ManualSourceProvider(ResearchProvider):
     notes: str = ""
@@ -283,13 +469,28 @@ def research_pop_cosmic_issue(
     manual_notes: str = "",
     max_results: int = 8,
     governance: dict | None = None,
+    research_provider: str = "official",
+    allowed_domains: list[str] | tuple[str, ...] | None = None,
+    perplexity_config: dict | None = None,
 ) -> dict:
     query = safe_research_query(symptom, profile)
     live_web_enabled = bool(enabled)
+    allowed_domain_tuple = tuple(allowed_domains or ALLOWED_DOMAINS)
     providers: list[ResearchProvider] = [
         OfficialSystem76Provider(enabled=live_web_enabled),
         ManualSourceProvider(manual_notes),
     ]
+    if live_web_enabled and research_provider == "perplexity":
+        config = perplexity_config or {}
+        providers.append(
+            PerplexityResearchProvider(
+                enabled=True,
+                allowed_domains=allowed_domain_tuple,
+                api_key_env_var=str(config.get("api_key_env_var") or "PERPLEXITY_API_KEY"),
+                model_env_var=str(config.get("model_env_var") or "PERPLEXITY_MODEL"),
+                master_env_path=str(config.get("master_env_path") or ""),
+            )
+        )
     if include_github:
         providers.append(GitHubCosmicProvider(enabled=live_web_enabled))
     records: list[dict] = []
@@ -297,7 +498,9 @@ def research_pop_cosmic_issue(
         records.extend(provider.search(query, max_results=max_results))
         if len(records) >= max_results:
             break
-    if live_web_enabled and include_github:
+    if live_web_enabled and research_provider == "perplexity":
+        research_mode = "live-web-perplexity-search"
+    elif live_web_enabled and include_github:
         research_mode = "live-web-search"
     elif manual_notes.strip():
         research_mode = "local-manual-and-official-metadata"

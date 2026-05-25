@@ -1740,19 +1740,46 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         try:
             profile = (self.pop_cosmic_scan or {}).get("profile", {})
             controls = load_pop_cosmic_controls()
+            requested_live_web = bool(controls.get("web_research_enabled"))
             governance = {
                 "source": controls.get("source"),
                 "web_research_enabled": bool(controls.get("web_research_enabled")),
-                "requested_live_web": False,
-                "effective_live_web": False,
+                "requested_live_web": requested_live_web,
+                "effective_live_web": requested_live_web,
                 "allowed_domains": controls.get("allowed_domains", []),
+                "research_provider": controls.get("research_provider", "official"),
                 "reason": (
-                    "Desktop Pop/COSMIC research did not opt in to live web research. "
-                    "Returning local/manual records and official source metadata only."
+                    "Desktop Pop/COSMIC research used the governed live provider."
+                    if requested_live_web
+                    else "Project controls keep live research disabled. Returning local/manual records and official source metadata only."
                 ),
             }
-            research = research_pop_cosmic_issue(symptom, profile, enabled=False, governance=governance)
+            research = research_pop_cosmic_issue(
+                symptom,
+                profile,
+                enabled=requested_live_web,
+                include_github=requested_live_web,
+                governance=governance,
+                research_provider=str(controls.get("research_provider", "official")),
+                allowed_domains=controls.get("allowed_domains", []),
+                perplexity_config={
+                    "api_key_env_var": controls.get("perplexity_api_key_env_var", "PERPLEXITY_API_KEY"),
+                    "model_env_var": controls.get("perplexity_model_env_var", "PERPLEXITY_MODEL"),
+                    "master_env_path": controls.get("master_env_path", ""),
+                },
+                max_results=int(controls.get("max_results_per_query", 8)),
+            )
             save_research_records(research.get("records", []))
+            if research.get("records"):
+                record_learning_note(
+                    {
+                        "source": "pop-cosmic-research",
+                        "summary": f"Saved {len(research.get('records', []))} Pop/COSMIC research records for future analysis.",
+                        "query": research.get("query"),
+                        "research_mode": research.get("research_mode"),
+                        "provider": controls.get("research_provider", "official"),
+                    }
+                )
             GLib.idle_add(self._apply_pop_cosmic_research, research)
         except Exception as exc:
             GLib.idle_add(self._set_status, f"Pop!_OS/COSMIC research failed: {exc}")

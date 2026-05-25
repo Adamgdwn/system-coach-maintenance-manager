@@ -17,6 +17,8 @@ The app also supports two explicit alternatives:
 
 Raw API keys are not accepted as saved settings. The provider config stores only the name of an environment variable such as `OPENAI_API_KEY`; the key value must be set outside the app.
 
+Pop/COSMIC live research follows the same rule. `project-control.yaml` may name `PERPLEXITY_API_KEY`, `PERPLEXITY_MODEL`, and a master env file path, but the app reads those values at runtime and does not save or display the Perplexity key.
+
 Provider settings are stored in a local user config path:
 
 ```text

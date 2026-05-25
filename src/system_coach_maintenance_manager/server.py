@@ -16,7 +16,7 @@ from .action_plan_registry import execute_registered_action, register_action_pla
 from .ai_engine import answer_question, reason_about_request
 from .diagnostics import collect_diagnostics
 from .maintenance_actions import build_action_contract
-from .maintenance_history import load_history, record_maintenance_report, record_request_plan
+from .maintenance_history import load_history, record_learning_note, record_maintenance_report, record_request_plan
 from .maintenance_history import record_action_result
 from .maintenance_reporting import generate_maintenance_report
 from .model_providers import model_provider_status, save_model_provider_config
@@ -223,6 +223,7 @@ class SystemCoachHandler(SimpleHTTPRequestHandler):
                 "requested_live_web": requested_live_web,
                 "effective_live_web": effective_live_web,
                 "allowed_domains": controls.get("allowed_domains", []),
+                "research_provider": controls.get("research_provider", "official"),
                 "reason": controls.get("governance_reason", ""),
             }
             if requested_live_web and not effective_live_web:
@@ -243,8 +244,25 @@ class SystemCoachHandler(SimpleHTTPRequestHandler):
                 manual_notes=str(payload.get("manual_notes", "")),
                 max_results=int(controls.get("max_results_per_query", 8)),
                 governance=governance,
+                research_provider=str(controls.get("research_provider", "official")),
+                allowed_domains=controls.get("allowed_domains", []),
+                perplexity_config={
+                    "api_key_env_var": controls.get("perplexity_api_key_env_var", "PERPLEXITY_API_KEY"),
+                    "model_env_var": controls.get("perplexity_model_env_var", "PERPLEXITY_MODEL"),
+                    "master_env_path": controls.get("master_env_path", ""),
+                },
             )
             save_research_records(research.get("records", []))
+            if research.get("records"):
+                record_learning_note(
+                    {
+                        "source": "pop-cosmic-research",
+                        "summary": f"Saved {len(research.get('records', []))} Pop/COSMIC research records for future analysis.",
+                        "query": research.get("query"),
+                        "research_mode": research.get("research_mode"),
+                        "provider": controls.get("research_provider", "official"),
+                    }
+                )
             self._send_json(research)
             return
 
