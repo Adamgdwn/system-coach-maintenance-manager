@@ -223,6 +223,104 @@ class DesktopExecutionFlowTests(unittest.TestCase):
         self.assertIn("Run a read-only journal query", summary)
         self.assertIn("cosmic-panel: Broken pipe", summary)
 
+    def test_maintenance_plan_summary_includes_local_reasoning_brief(self):
+        window = SystemCoachWindow.__new__(SystemCoachWindow)
+        plan = {
+            "id": "plan-journal-errors",
+            "finding_id": "journal-errors",
+            "title": "Group recent critical log errors",
+            "risk": "low",
+            "reversible": True,
+            "requires_privilege": False,
+            "approval_required": True,
+            "execution_enabled": True,
+            "expected_effect": "Collect log context.",
+            "manual_steps": ["Group repeated log lines by service, device, or package."],
+            "rollback": [],
+            "maintenance_reasoning": {
+                "source": "local-model",
+                "model": "qwen3:8b",
+                "working_problem": "Critical logs need grouping before repair.",
+                "scenario_review": "Could be COSMIC panel state or a secondary service error.",
+                "hypotheses": [
+                    {
+                        "summary": "COSMIC panel is emitting repeated errors.",
+                        "supporting_evidence": ["broken pipe sample"],
+                        "contradicting_evidence": ["no fresh post-restart logs yet"],
+                    }
+                ],
+                "evidence_assessment": "The log sample supports collecting more context first.",
+                "plan_fit": "The journal query is the smallest useful next step.",
+                "troubleshooting_path": ["Collect wider log sample", "Group repeated sources"],
+                "recommended_next_step": "Run the read-only journal query, then reassess.",
+                "approval_guidance": "Approve only the shown journal query.",
+                "stop_conditions": ["Do not approve if the command changes services."],
+            },
+            "action_contract": {
+                "execution_enabled": True,
+                "execution_mode": "user",
+                "fingerprint": "abc123",
+                "command_preview": ["journalctl -p 3 -n 100 --no-pager"],
+                "execution_gate": {"reasons": []},
+            },
+        }
+        window.current_maintenance = {
+            "findings": [
+                {
+                    "id": "journal-errors",
+                    "summary": "14 recent critical journal line(s) were found.",
+                    "evidence": {"line_count": 14, "sample": ["cosmic-panel: Broken pipe"]},
+                }
+            ]
+        }
+
+        summary = SystemCoachWindow._plain_plan_summary(window, plan)
+
+        self.assertIn("Reasoning pass:", summary)
+        self.assertIn("Source: local-model (qwen3:8b)", summary)
+        self.assertIn("Hypotheses considered:", summary)
+        self.assertIn("Run the read-only journal query, then reassess.", summary)
+
+    def test_start_plan_execution_runs_maintenance_reasoning_before_approval(self):
+        class ImmediateThread:
+            def __init__(self, target, args=(), daemon=None):
+                self.target = target
+                self.args = args
+
+            def start(self):
+                self.target(*self.args)
+
+        window = SystemCoachWindow.__new__(SystemCoachWindow)
+        events = []
+        plan = {
+            "id": "plan-journal-errors",
+            "finding_id": "journal-errors",
+            "title": "Group recent critical log errors",
+            "manual_steps": [],
+            "action_contract": {"execution_enabled": True, "execution_mode": "user"},
+        }
+        finding = {"id": "journal-errors", "summary": "Critical logs found.", "evidence": {}}
+        window.current_maintenance = {"findings": [finding]}
+        window._set_execution_buttons_sensitive = lambda sensitive: events.append(("buttons", sensitive))
+        window._set_status = lambda status: events.append(("status", status))
+        window._refresh_selected_plan_preview = lambda: events.append(("preview",))
+        window._start_plan_execution = lambda started_plan: events.append(("start", started_plan.get("maintenance_reasoning", {}).get("source")))
+
+        with patch("system_coach_maintenance_manager.desktop_app.threading.Thread", ImmediateThread), patch(
+            "system_coach_maintenance_manager.desktop_app.GLib.idle_add", side_effect=lambda callback, *args: callback(*args)
+        ), patch(
+            "system_coach_maintenance_manager.desktop_app.load_history",
+            return_value={"learning_notes": [], "known_good_lessons": [], "changed_since_last": []},
+        ), patch(
+            "system_coach_maintenance_manager.desktop_app.reason_about_maintenance_plan",
+            return_value={"ok": True, "source": "local-model", "model": "qwen3:8b", "recommended_next_step": "Collect evidence."},
+        ) as reason:
+            SystemCoachWindow._start_plan_execution_with_reasoning(window, plan)
+
+        reason.assert_called_once()
+        self.assertEqual(plan["maintenance_reasoning"]["source"], "local-model")
+        self.assertIn(("start", "local-model"), events)
+
 
 if __name__ == "__main__":
     unittest.main()

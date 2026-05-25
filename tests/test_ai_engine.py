@@ -1,12 +1,15 @@
 import unittest
+import urllib.error
 from unittest.mock import patch
 
 from system_coach_maintenance_manager.ai_engine import (
     analyze_action_result,
     build_context,
+    build_maintenance_reasoning_prompt,
     build_request_reasoning_prompt,
     choose_model,
     choose_request_brain_model,
+    reason_about_maintenance_plan,
     reason_about_request,
 )
 
@@ -103,6 +106,74 @@ class AiEngineTests(unittest.TestCase):
         self.assertIn("Build multiple hypotheses", prompt)
         self.assertIn("permission_plan", prompt)
         self.assertIn("The family is the current investigation lane, not a final diagnosis", prompt)
+
+    def test_build_maintenance_reasoning_prompt_uses_troubleshooting_method(self):
+        prompt = build_maintenance_reasoning_prompt(
+            {
+                "title": "Group recent critical log errors",
+                "commands": ["journalctl -p 3 -n 100 --no-pager"],
+                "risk": "low",
+            },
+            {
+                "id": "journal-errors",
+                "summary": "14 critical log lines found.",
+                "evidence": {"sample": ["cosmic-panel broken pipe"]},
+            },
+            learning_context=["A prior panel restart fixed stale COSMIC state."],
+        )
+
+        self.assertIn("before an approval dialog", prompt)
+        self.assertIn("Build multiple hypotheses", prompt)
+        self.assertIn("Do not invent shell commands", prompt)
+        self.assertIn("journalctl -p 3 -n 100 --no-pager", prompt)
+
+    def test_reason_about_maintenance_plan_uses_local_model_structured_json(self):
+        with patch(
+            "system_coach_maintenance_manager.ai_engine._get_json",
+            return_value={"models": [{"name": "qwen3:8b"}]},
+        ), patch(
+            "system_coach_maintenance_manager.ai_engine._post_json",
+            return_value={
+                "response": (
+                    '{"working_problem":"Critical logs need grouping before repair.",'
+                    '"scenario_review":"The log finding may be COSMIC panel related or a secondary error.",'
+                    '"hypotheses":[{"summary":"COSMIC panel is producing repeated errors",'
+                    '"supporting_evidence":["broken pipe sample"],"contradicting_evidence":["no fresh panel logs"]}],'
+                    '"evidence_assessment":"Current evidence supports log grouping first.",'
+                    '"plan_fit":"The journal query is the smallest useful next step.",'
+                    '"troubleshooting_path":["Collect wider log sample","Group repeated sources"],'
+                    '"recommended_next_step":"Run the read-only journal query, then reassess.",'
+                    '"approval_guidance":"Approve only the shown journal query.",'
+                    '"stop_conditions":["Do not approve if the command changes services."],'
+                    '"confidence":0.82}'
+                )
+            },
+        ):
+            result = reason_about_maintenance_plan(
+                {"title": "Group recent critical log errors", "commands": ["journalctl -p 3 -n 100 --no-pager"]},
+                {"id": "journal-errors", "summary": "14 critical log lines found.", "evidence": {"sample": ["broken pipe"]}},
+            )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["source"], "local-model")
+        self.assertEqual(result["model"], "qwen3:8b")
+        self.assertIn("COSMIC panel", result["scenario_review"])
+        self.assertEqual(result["troubleshooting_path"][0], "Collect wider log sample")
+        self.assertIn("journal query", result["recommended_next_step"])
+
+    def test_reason_about_maintenance_plan_falls_back_without_model(self):
+        with patch(
+            "system_coach_maintenance_manager.ai_engine._get_json",
+            side_effect=urllib.error.URLError("offline"),
+        ):
+            result = reason_about_maintenance_plan(
+                {"title": "Group recent critical log errors", "expected_effect": "Collect log context."},
+                {"id": "journal-errors", "summary": "14 critical log lines found.", "evidence": {"sample": ["broken pipe"]}},
+            )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["source"], "deterministic-maintenance-brief")
+        self.assertIn("larger recent error sample", " ".join(result["troubleshooting_path"]))
 
     def test_reason_about_request_uses_local_model_structured_json(self):
         with patch(

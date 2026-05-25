@@ -14,7 +14,7 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 
 from .agents import build_agents
-from .ai_engine import analyze_action_result, answer_question, get_engine_status, reason_about_request
+from .ai_engine import analyze_action_result, answer_question, get_engine_status, reason_about_maintenance_plan, reason_about_request
 from .diagnostics import collect_diagnostics
 from .exporting import build_share_text
 from .followup_plans import build_followup_request
@@ -1188,8 +1188,8 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self._refresh_approval_queue()
         plan = executable_backlog[0]
         self._select_plan_in_approval_queue(plan)
-        self._set_status("Reviewing the next maintenance backlog fix. Type APPROVE only if the plan looks right.")
-        self._start_plan_execution(plan)
+        self._set_status("Thinking through the next maintenance backlog plan before approval...")
+        self._start_plan_execution_with_reasoning(plan)
 
     def _refresh_history_view(self) -> None:
         self.current_history = load_history()
@@ -1326,6 +1326,47 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             if finding.get("id") == finding_id:
                 return finding
         return None
+
+    def _maintenance_reasoning_lines(self, reasoning: dict | None) -> list[str]:
+        if not reasoning:
+            return []
+        source = reasoning.get("source", "unknown")
+        model = reasoning.get("model")
+        lines = [
+            "Reasoning pass:",
+            f"Source: {source}" + (f" ({model})" if model else ""),
+        ]
+        if reasoning.get("working_problem"):
+            lines.extend(["Working problem:", str(reasoning["working_problem"])])
+        if reasoning.get("scenario_review"):
+            lines.extend(["Scenario review:", str(reasoning["scenario_review"])])
+        hypotheses = reasoning.get("hypotheses", [])
+        if hypotheses:
+            lines.append("Hypotheses considered:")
+            for index, hypothesis in enumerate(hypotheses[:5], 1):
+                if isinstance(hypothesis, dict):
+                    lines.append(f"{index}. {hypothesis.get('summary', '')}")
+                    supporting = hypothesis.get("supporting_evidence", [])
+                    contradicting = hypothesis.get("contradicting_evidence", [])
+                    if supporting:
+                        lines.extend(f"   supports: {item}" for item in supporting[:3])
+                    if contradicting:
+                        lines.extend(f"   could disprove: {item}" for item in contradicting[:3])
+                else:
+                    lines.append(f"{index}. {hypothesis}")
+        if reasoning.get("evidence_assessment"):
+            lines.extend(["Evidence assessment:", str(reasoning["evidence_assessment"])])
+        if reasoning.get("plan_fit"):
+            lines.extend(["Plan fit:", str(reasoning["plan_fit"])])
+        if reasoning.get("approval_guidance"):
+            lines.extend(["Approval guidance:", str(reasoning["approval_guidance"])])
+        stop_conditions = reasoning.get("stop_conditions", [])
+        if stop_conditions:
+            lines.append("Stop conditions:")
+            lines.extend(f"- {item}" for item in stop_conditions[:6])
+        if reasoning.get("model_error"):
+            lines.extend(["Model note:", str(reasoning["model_error"])])
+        return lines
 
     def _finding_evidence_summary(self, finding: dict) -> str:
         evidence = finding.get("evidence", {})
@@ -1464,7 +1505,12 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         if finding:
             problem = finding["summary"]
             evidence = self._finding_evidence_summary(finding)
-            why = self._maintenance_plan_why(plan, finding)
+            maintenance_reasoning = plan.get("maintenance_reasoning") or {}
+            why = (
+                maintenance_reasoning.get("scenario_review")
+                or maintenance_reasoning.get("evidence_assessment")
+                or self._maintenance_plan_why(plan, finding)
+            )
         else:
             problem = plan.get("request") or plan.get("summary", "This plan came from a direct user request.")
             if evidence_scopes:
@@ -1491,7 +1537,8 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             why = "\n".join(why_parts) or plan.get("summary", "The request matched a known maintenance family.")
 
         if finding:
-            action = self._maintenance_plan_action(plan, finding, executable, execution_mode)
+            maintenance_reasoning = plan.get("maintenance_reasoning") or {}
+            action = maintenance_reasoning.get("recommended_next_step") or self._maintenance_plan_action(plan, finding, executable, execution_mode)
         elif executable and execution_mode == "elevated":
             action = (
                 "Execute will request administrator permission with the operating-system password prompt, "
@@ -1509,6 +1556,13 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         else:
             action = "Execute will not run this plan yet because the guarded runner blocked it."
 
+        if finding:
+            troubleshooting_items = (plan.get("maintenance_reasoning") or {}).get("troubleshooting_path") or self._maintenance_troubleshooting_steps(
+                plan, finding
+            )
+        else:
+            troubleshooting_items = plan.get("manual_steps", [])[:5]
+
         lines = [
             plan["title"],
             "",
@@ -1521,15 +1575,10 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             "Why:",
             why or "The diagnostic needs more evidence before naming a root cause.",
             "",
+            *self._maintenance_reasoning_lines(plan.get("maintenance_reasoning") if finding else None),
+            "",
             "How I would troubleshoot:",
-            *(
-                f"- {item}"
-                for item in (
-                    self._maintenance_troubleshooting_steps(plan, finding)
-                    if finding
-                    else plan.get("manual_steps", [])[:5]
-                )
-            ),
+            *(f"- {item}" for item in troubleshooting_items),
             "",
             "Recommended action:",
             action,
@@ -1662,7 +1711,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
                 "No approval-required fix is queued yet. Use Request Desk to describe a specific request, or run maintenance diagnostics to populate the Approval Queue.",
             )
             return
-        self._start_plan_execution(plan)
+        self._start_plan_execution_with_reasoning(plan)
 
     def on_execute_current_request(self, _button: Gtk.Button | None) -> None:
         if not self.current_request_plan:
@@ -1673,6 +1722,59 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             )
             return
         self._start_plan_execution(self.current_request_plan)
+
+    def _start_plan_execution_with_reasoning(self, plan: dict) -> None:
+        finding = self._finding_for_plan(plan)
+        if not finding or plan.get("maintenance_reasoning"):
+            self._start_plan_execution(plan)
+            return
+        self._set_execution_buttons_sensitive(False)
+        self._set_status("Using the local reasoning brain to review the maintenance plan before approval...")
+        threading.Thread(target=self._maintenance_reasoning_worker, args=(plan, finding), daemon=True).start()
+
+    def _maintenance_reasoning_worker(self, plan: dict, finding: dict) -> None:
+        try:
+            history = load_history(limit=25)
+            reasoning = reason_about_maintenance_plan(
+                plan,
+                finding,
+                maintenance_report=self.current_maintenance,
+                learning_context=history.get("learning_notes", []) + history.get("known_good_lessons", []),
+                changed_since_last=history.get("changed_since_last", []),
+            )
+        except Exception as exc:
+            reasoning = {
+                "ok": False,
+                "source": "maintenance-reasoning-error",
+                "model": None,
+                "working_problem": finding.get("summary", plan.get("title", "")),
+                "scenario_review": "The local reasoning pass failed before approval, so only the deterministic plan summary is available.",
+                "hypotheses": [],
+                "evidence_assessment": finding.get("summary", ""),
+                "plan_fit": "Review the deterministic command preview carefully before approving.",
+                "troubleshooting_path": plan.get("manual_steps", []),
+                "recommended_next_step": self._maintenance_plan_action(
+                    plan,
+                    finding,
+                    (plan.get("action_contract") or {}).get("execution_enabled", plan.get("execution_enabled", False)),
+                    (plan.get("action_contract") or {}).get("execution_mode"),
+                ),
+                "approval_guidance": "Approve only if the exact command preview matches the evidence you want collected.",
+                "stop_conditions": ["Do not approve if the command preview does not match the finding."],
+                "model_error": str(exc),
+            }
+        GLib.idle_add(self._apply_maintenance_reasoning_and_execute, plan, reasoning)
+
+    def _apply_maintenance_reasoning_and_execute(self, plan: dict, reasoning: dict) -> bool:
+        plan["maintenance_reasoning"] = reasoning
+        self._set_execution_buttons_sensitive(True)
+        source = reasoning.get("source", "reasoning")
+        model = reasoning.get("model")
+        suffix = f" with {model}" if model else ""
+        self._set_status(f"Maintenance reasoning complete via {source}{suffix}. Review before approving.")
+        self._refresh_selected_plan_preview()
+        self._start_plan_execution(plan)
+        return False
 
     def _start_plan_execution(self, plan: dict) -> None:
         contract = plan.get("action_contract", {})

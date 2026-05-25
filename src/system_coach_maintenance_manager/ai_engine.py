@@ -370,6 +370,233 @@ def reason_about_request(
     }
 
 
+def build_maintenance_reasoning_prompt(
+    plan: dict,
+    finding: dict,
+    *,
+    maintenance_report: dict | None = None,
+    learning_context: list[str] | None = None,
+    changed_since_last: list[str] | None = None,
+) -> str:
+    """Build the pre-approval maintenance reasoning prompt."""
+
+    peer_findings = []
+    if maintenance_report:
+        for item in maintenance_report.get("findings", [])[:8]:
+            peer_findings.append(
+                {
+                    "id": item.get("id"),
+                    "title": item.get("title"),
+                    "severity": item.get("severity"),
+                    "summary": item.get("summary"),
+                    "evidence": item.get("evidence"),
+                }
+            )
+    plan_contract = plan.get("action_contract", {})
+    compact_plan = {
+        "id": plan.get("id"),
+        "title": plan.get("title"),
+        "family": plan.get("family", plan.get("finding_id")),
+        "risk": plan.get("risk"),
+        "reversible": plan.get("reversible"),
+        "requires_privilege": plan.get("requires_privilege"),
+        "commands": plan.get("commands", []),
+        "expected_effect": plan.get("expected_effect"),
+        "manual_steps": plan.get("manual_steps", []),
+        "rollback": plan.get("rollback", []),
+        "execution_enabled": plan_contract.get("execution_enabled", plan.get("execution_enabled")),
+        "execution_mode": plan_contract.get("execution_mode"),
+        "gate_reasons": plan_contract.get("execution_gate", {}).get("reasons", []),
+    }
+    compact_finding = {
+        "id": finding.get("id"),
+        "title": finding.get("title"),
+        "category": finding.get("category"),
+        "severity": finding.get("severity"),
+        "status": finding.get("status"),
+        "summary": finding.get("summary"),
+        "evidence": finding.get("evidence"),
+        "recommended_next_steps": finding.get("recommended_next_steps", []),
+    }
+    return "\n".join(
+        [
+            "You are the local maintenance reasoning brain before an approval dialog.",
+            troubleshooting_prompt_block(),
+            "",
+            "Think like a careful technician. The user needs to know whether the next step is justified before typing APPROVE.",
+            "Use the diagnostics, history, and selected plan to reason through the problem.",
+            "Do not invent shell commands. The deterministic guarded plan already supplies the only commands that may execute.",
+            "Do not claim the command fixes the problem unless it actually changes the system.",
+            "Treat evidence-collection commands as investigation steps, not repairs.",
+            "Return only JSON with these keys:",
+            (
+                "working_problem, scenario_review, hypotheses, evidence_assessment, plan_fit, "
+                "troubleshooting_path, recommended_next_step, approval_guidance, stop_conditions, confidence"
+            ),
+            "",
+            "Reasoning rules:",
+            "- Restate the working problem as a symptom, not a final cause.",
+            "- Consider at least two plausible hypotheses when possible.",
+            "- Say what current evidence supports and what evidence would disprove the leading hypothesis.",
+            "- Explain why this selected plan is or is not the smallest useful next step.",
+            "- In troubleshooting_path, list the next 3-6 steps in order, including what to learn after execution.",
+            "- In approval_guidance, say exactly what the user is approving and what they are not approving.",
+            "- In stop_conditions, name conditions where the user should not approve or should stop after execution.",
+            "- Keep the response plain and concrete.",
+            "",
+            f"Selected finding JSON: {json.dumps(compact_finding, ensure_ascii=True)[:7000]}",
+            f"Selected guarded plan JSON: {json.dumps(compact_plan, ensure_ascii=True)[:7000]}",
+            f"Peer findings JSON: {json.dumps(peer_findings, ensure_ascii=True)[:8000]}",
+            f"Changed since last diagnostics JSON: {json.dumps((changed_since_last or [])[:8], ensure_ascii=True)[:3000]}",
+            f"Local learning notes JSON: {json.dumps((learning_context or [])[:8], ensure_ascii=True)[:4000]}",
+        ]
+    )
+
+
+def _clean_string_list(value: Any, limit: int = 6) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()][:limit]
+
+
+def _fallback_maintenance_reasoning(plan: dict, finding: dict, reason: str = "") -> dict[str, Any]:
+    finding_id = finding.get("id", "maintenance")
+    if finding_id == "journal-errors":
+        hypotheses = [
+            "A repeated service, device, package, or desktop component is producing critical log messages.",
+            "The critical log sample may include stale or secondary errors that need grouping before repair.",
+        ]
+        recommended = (
+            "Run the read-only journal query to collect a wider sample, then group repeated sources before proposing any restart or repair."
+        )
+        path = [
+            "Treat the critical logs as symptoms.",
+            "Collect a larger recent error sample.",
+            "Group repeated messages by source.",
+            "Prepare a separate fix only for the repeated source.",
+        ]
+    elif finding_id == "package-manager-health":
+        hypotheses = [
+            "The package database or package-manager source state needs inspection.",
+            "A lock, held package, source issue, or interrupted transaction may be the actual cause.",
+        ]
+        recommended = "Run only the package health check, then prepare a narrower repair if the output identifies one."
+        path = [
+            "Inspect package health without changing packages.",
+            "Identify the exact package-manager failure.",
+            "Prepare a named repair plan with rollback.",
+        ]
+    else:
+        hypotheses = [
+            "The diagnostic finding may be the direct issue.",
+            "The finding may be a secondary symptom caused by another service, device, or configuration problem.",
+        ]
+        recommended = plan.get("expected_effect", "Run the selected evidence step before proposing a repair.")
+        path = list(plan.get("manual_steps", []))[:4] or ["Collect the next narrow evidence step.", "Reassess before changing the machine."]
+    return {
+        "ok": True,
+        "source": "deterministic-maintenance-brief",
+        "model": None,
+        "working_problem": str(finding.get("summary", plan.get("title", "Maintenance finding"))),
+        "scenario_review": "Local model reasoning was unavailable, so the app used its deterministic maintenance troubleshooting rules.",
+        "hypotheses": [{"summary": item, "supporting_evidence": [], "contradicting_evidence": []} for item in hypotheses],
+        "evidence_assessment": str(finding.get("summary", "")),
+        "plan_fit": "This is the smallest currently guarded step for this diagnostics-generated finding.",
+        "troubleshooting_path": path,
+        "recommended_next_step": recommended,
+        "approval_guidance": "Approve only the exact command preview shown in the guarded dialog; this is not blanket approval for repairs.",
+        "stop_conditions": [
+            "Do not approve if the command preview does not match the issue you want investigated.",
+            "Stop after execution if the output points to a different source than expected.",
+        ],
+        "confidence": None,
+        "model_error": reason,
+    }
+
+
+def reason_about_maintenance_plan(
+    plan: dict,
+    finding: dict,
+    *,
+    maintenance_report: dict | None = None,
+    learning_context: list[str] | None = None,
+    changed_since_last: list[str] | None = None,
+) -> dict[str, Any]:
+    """Use the local model to reason through a diagnostics-generated plan before approval."""
+
+    status = get_engine_status()
+    if not status["available"]:
+        return _fallback_maintenance_reasoning(plan, finding, status.get("message", "Local model was unavailable."))
+    models = choose_request_brain_models(status.get("models", []))
+    if not models:
+        return _fallback_maintenance_reasoning(plan, finding, "No supported local maintenance reasoning model is available.")
+
+    prompt = build_maintenance_reasoning_prompt(
+        plan,
+        finding,
+        maintenance_report=maintenance_report,
+        learning_context=learning_context,
+        changed_since_last=changed_since_last,
+    )
+    last_error: Exception | None = None
+    selected_model = models[0]
+    for model in models:
+        selected_model = model
+        try:
+            data = _post_json(
+                "/api/generate",
+                {
+                    "model": model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "format": "json",
+                    "options": {"temperature": 0.1},
+                },
+                timeout=35,
+            )
+            parsed = _extract_json_object(data.get("response", ""))
+            hypotheses = parsed.get("hypotheses", [])
+            clean_hypotheses = []
+            if isinstance(hypotheses, list):
+                for item in hypotheses[:5]:
+                    if isinstance(item, dict):
+                        summary = str(item.get("summary", "")).strip()
+                        if summary:
+                            clean_hypotheses.append(
+                                {
+                                    "summary": summary,
+                                    "supporting_evidence": _clean_string_list(item.get("supporting_evidence", []), 4),
+                                    "contradicting_evidence": _clean_string_list(item.get("contradicting_evidence", []), 4),
+                                }
+                            )
+                    else:
+                        summary = str(item).strip()
+                        if summary:
+                            clean_hypotheses.append({"summary": summary, "supporting_evidence": [], "contradicting_evidence": []})
+            return {
+                "ok": True,
+                "source": "local-model",
+                "model": selected_model,
+                "working_problem": str(parsed.get("working_problem", finding.get("summary", ""))).strip(),
+                "scenario_review": str(parsed.get("scenario_review", "")).strip(),
+                "hypotheses": clean_hypotheses,
+                "evidence_assessment": str(parsed.get("evidence_assessment", "")).strip(),
+                "plan_fit": str(parsed.get("plan_fit", "")).strip(),
+                "troubleshooting_path": _clean_string_list(parsed.get("troubleshooting_path", []), 6),
+                "recommended_next_step": str(parsed.get("recommended_next_step", "")).strip(),
+                "approval_guidance": str(parsed.get("approval_guidance", "")).strip(),
+                "stop_conditions": _clean_string_list(parsed.get("stop_conditions", []), 6),
+                "confidence": parsed.get("confidence"),
+            }
+        except (urllib.error.URLError, json.JSONDecodeError, ValueError) as exc:
+            last_error = exc
+    return _fallback_maintenance_reasoning(
+        plan,
+        finding,
+        f"No local model returned a usable maintenance reasoning brief from {selected_model}: {last_error}",
+    )
+
+
 def analyze_action_result(plan: dict, result: dict) -> dict[str, Any]:
     """Ask the local reasoning ladder to turn command output into a useful next-step summary."""
 
