@@ -247,12 +247,17 @@ def _summarize_cosmic_panel_evidence(output: str) -> dict[str, Any]:
     }
 
 
-def derive_cosmic_panel_restart_fix(request_text: str, output: str) -> dict[str, Any] | None:
+def derive_cosmic_panel_restart_fix(
+    request_text: str,
+    output: str,
+    *,
+    require_shell_terms: bool = True,
+) -> dict[str, Any] | None:
     """Create a targeted panel restart request from COSMIC shell evidence."""
 
     normalized = _normalize(request_text)
     shell_terms = ("bottom bar", "panel", "launcher", "icon", "icons", "applet", "workspaces", "app library")
-    if not any(term in normalized for term in shell_terms):
+    if require_shell_terms and not any(term in normalized for term in shell_terms):
         return None
     evidence = _summarize_cosmic_panel_evidence(output)
     if not (evidence["duplicated_buttons"] or evidence["broken_pipe_count"] or evidence["applet_exit_count"]):
@@ -285,7 +290,7 @@ def build_followup_request(plan: dict, result: dict, analysis: dict | None = Non
 
     if result.get("status") != "completed":
         return None
-    family = plan.get("family")
+    family = plan.get("family") or plan.get("finding_id") or (plan.get("action_contract") or {}).get("family")
     if family == "display-dock":
         followup = derive_cosmic_display_layout_fix(str(result.get("output", "")))
         if not followup:
@@ -299,6 +304,40 @@ def build_followup_request(plan: dict, result: dict, analysis: dict | None = Non
             "reasoning_summary": followup["summary"],
             "request_evidence": {
                 "scopes": ["display-dock", "display-layout-fix"],
+                "commands": [{"command": command, "output": ""} for command in result.get("commands", [])],
+            },
+        }
+        return followup
+    if family == "journal-errors":
+        followup = derive_cosmic_panel_restart_fix(
+            str(plan.get("request") or plan.get("title") or ""),
+            str(result.get("output", "")),
+            require_shell_terms=False,
+        )
+        if not followup:
+            return None
+        followup["reasoning"] = {
+            "source": "deterministic-followup",
+            "model": (analysis or {}).get("model"),
+            "family": followup["family"],
+            "ready": True,
+            "confidence": 0.82,
+            "reasoning_summary": followup["summary"],
+            "evidence_assessment": (
+                "The executed journal evidence contains COSMIC panel broken-pipe or applet-exit signals. "
+                "That supports a narrow current-user panel restart instead of repeating the same log inspection."
+            ),
+            "investigation_steps": [
+                "Restart only the current user's cosmic-panel process.",
+                "Wait for the bottom bar to return.",
+                "Retest the affected panel icons before running another broad maintenance scan.",
+            ],
+            "permission_plan": (
+                "This is a current-user action. It terminates only cosmic-panel so the COSMIC session can respawn it. "
+                "It does not install packages, edit files, or require administrator privileges."
+            ),
+            "request_evidence": {
+                "scopes": ["journal-errors", "pop-cosmic", "cosmic-panel"],
                 "commands": [{"command": command, "output": ""} for command in result.get("commands", [])],
             },
         }

@@ -122,6 +122,43 @@ class FollowupPlanTests(unittest.TestCase):
         self.assertEqual(followup["reasoning"]["model"], "qwen3:8b")
         self.assertIn("current user's cosmic-panel", followup["reasoning"]["permission_plan"])
 
+    def test_build_followup_request_for_maintenance_journal_cosmic_panel_evidence(self):
+        followup = build_followup_request(
+            {
+                "id": "plan-journal-errors",
+                "finding_id": "journal-errors",
+                "title": "Group recent critical log errors",
+            },
+            {
+                "status": "completed",
+                "commands": ["journalctl -p 3 -n 100 --no-pager"],
+                "output": COSMIC_PANEL_OUTPUT,
+            },
+            {"model": "qwen3:8b"},
+        )
+
+        self.assertIsNotNone(followup)
+        self.assertEqual(followup["family"], "pop-cosmic-panel-restart")
+        self.assertEqual(followup["reasoning"]["source"], "deterministic-followup")
+        self.assertIn("instead of repeating the same log inspection", followup["reasoning"]["evidence_assessment"])
+        self.assertIn("journal-errors", followup["reasoning"]["request_evidence"]["scopes"])
+
+    def test_maintenance_journal_followup_ignores_unrelated_errors(self):
+        followup = build_followup_request(
+            {
+                "id": "plan-journal-errors",
+                "finding_id": "journal-errors",
+                "title": "Group recent critical log errors",
+            },
+            {
+                "status": "completed",
+                "commands": ["journalctl -p 3 -n 100 --no-pager"],
+                "output": "kernel: unrelated PCIe bus warning",
+            },
+        )
+
+        self.assertIsNone(followup)
+
     def test_non_evidence_result_does_not_create_followup(self):
         followup = build_followup_request(
             {"family": "cursor-size"},

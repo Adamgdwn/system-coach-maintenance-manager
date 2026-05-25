@@ -1176,6 +1176,16 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         if page_number is not None and page_number >= 0:
             self.notebook.set_current_page(page_number)
 
+    def _show_request_page(self) -> None:
+        if not hasattr(self, "notebook") or not hasattr(self, "request_page"):
+            return
+        try:
+            page_number = self.notebook.page_num(self.request_page)
+        except Exception:
+            return
+        if page_number is not None and page_number >= 0:
+            self.notebook.set_current_page(page_number)
+
     def on_review_next_backlog_fix(self, _button: Gtk.Button | None) -> None:
         if not self.current_maintenance:
             self._set_status("Run maintenance diagnostics before reviewing backlog fixes.")
@@ -1962,7 +1972,8 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
                             "Next executable recommendation:",
                             self._plain_plan_summary(followup_plan),
                             "",
-                            "Press Execute Current Recommendation to apply this fix, or type a change in Request Desk to modify it.",
+                            "I moved this fix into Request Desk. Press Execute Current Recommendation there to apply it, "
+                            "or type a change in Request Desk to modify it.",
                         ]
                     )
                 body_lines.extend(
@@ -2291,6 +2302,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
                 ]
             ),
         )
+        self._show_request_page()
         self._append_request_message(
             "Request Desk",
             (
