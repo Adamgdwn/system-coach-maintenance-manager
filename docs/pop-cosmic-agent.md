@@ -35,7 +35,6 @@ The scan collects bounded evidence from available commands such as:
 - `xrandr --query`
 - `lspci -nnk`
 - `lsusb`
-- `apt-get check`
 - `apt list --upgradable`
 - `apt-mark showhold`
 - `apt-cache policy ...`

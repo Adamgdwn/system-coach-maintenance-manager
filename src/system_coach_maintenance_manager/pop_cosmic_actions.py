@@ -149,10 +149,9 @@ def prepare_pop_cosmic_action(action_key: str, analysis: dict, scan: dict) -> di
         )
     if action_key in {"collect-update-state", "collect-package-state"}:
         commands = [
-            "apt-get check",
             "apt list --upgradable",
             "apt-mark showhold",
-            "apt-cache policy pop-desktop cosmic-session cosmic-comp cosmic-settings cosmic-store",
+            "apt-cache policy pop-desktop cosmic-session cosmic-panel cosmic-comp cosmic-settings cosmic-store",
             "flatpak remote-ls --updates",
         ]
         return _base_plan(

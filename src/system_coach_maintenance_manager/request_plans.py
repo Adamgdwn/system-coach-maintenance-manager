@@ -675,8 +675,8 @@ def _pop_cosmic_plan(request_text: str, platform_name: str, platform_key: str) -
             "systemctl --user --failed --no-legend --plain",
             "journalctl --user -b -n 300 --no-pager",
             "cosmic-randr list",
-            "apt-get check",
             "apt list --upgradable",
+            "apt-cache policy pop-desktop cosmic-session cosmic-panel cosmic-comp cosmic-settings cosmic-store",
         ],
         manual_steps=[
             "Review Pop!_OS/COSMIC profile, user services, display state, package health, and filtered UI logs.",

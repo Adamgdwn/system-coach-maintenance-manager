@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Removed `apt-get check` from user-level Pop/COSMIC evidence plans so guarded scans do not fail on the dpkg frontend lock; package metadata is collected with non-locking read-only commands instead.
 - Enabled governed Pop/COSMIC live research through Perplexity using `PERPLEXITY_API_KEY`/`PERPLEXITY_MODEL` from the configured master env file, with allowed-domain filtering, redacted secret handling, saved research records, and learning notes for future analysis.
 - Routed COSMIC bottom-bar, panel icon, applet, launcher icon, and tray icon requests through deterministic Pop/COSMIC planning on COSMIC sessions so obvious shell issues do not wait on local model escalation.
 - Added a Request Desk reasoning watchdog so slow or stuck local-model analysis restores controls, reports the timeout, and falls back to deterministic intake instead of leaving the UI in a permanent thinking state.

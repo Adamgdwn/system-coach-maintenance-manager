@@ -197,6 +197,8 @@ DVI-I-1 (enabled)
         self.assert_approval_preview(plan)
         self.assertTrue(plan["action_contract"]["eligible_for_guarded_execution"])
         self.assertIn("journalctl --user -b -n 300 --no-pager", plan["commands"])
+        self.assertNotIn("apt-get check", plan["commands"])
+        self.assertIn("apt-cache policy pop-desktop cosmic-session cosmic-panel cosmic-comp cosmic-settings cosmic-store", plan["commands"])
         self.assertIn("not approval to update", plan["approval_prompt"])
 
     def test_prepare_cosmic_bottom_bar_request_uses_session_hint(self):
