@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import threading
 
@@ -1517,103 +1518,168 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
 
     def _execute_plan_worker(self, plan: dict, confirmation_text: str) -> None:
         contract = plan.get("action_contract", {})
-        result = execute_guarded_action(contract, confirmation_text)
-        record_action_result(result)
-        analysis = analyze_action_result(plan, result) if result["status"] == "completed" else None
+        analysis = None
+        try:
+            result = execute_guarded_action(contract, confirmation_text)
+        except Exception as exc:
+            result = self._execution_exception_result(contract, exc)
+        try:
+            record_action_result(result)
+        except Exception as exc:
+            result["history_error"] = str(exc)
+        if result.get("status") == "completed":
+            GLib.idle_add(self._set_status, "Execution completed. Analyzing result with the local model...")
+            try:
+                analysis = analyze_action_result(plan, result)
+            except Exception as exc:
+                analysis = {
+                    "ok": False,
+                    "model": None,
+                    "analysis": f"Local model result analysis failed after execution completed: {exc}",
+                }
         GLib.idle_add(self._apply_execution_result, plan, result, analysis)
+
+    def _execution_exception_result(self, contract: dict, exc: Exception) -> dict:
+        now = dt.datetime.now().isoformat(timespec="seconds")
+        return {
+            "action_id": contract.get("id"),
+            "plan_id": contract.get("plan_id"),
+            "server_plan_id": contract.get("server_plan_id"),
+            "fingerprint": contract.get("fingerprint"),
+            "status": "failed",
+            "started_at": now,
+            "finished_at": now,
+            "execution_enabled": bool(contract.get("execution_enabled")),
+            "exit_code": None,
+            "commands": contract.get("command_preview", []),
+            "output": "",
+            "error": f"desktop execution worker failed before a command result was returned: {exc}",
+            "post_check": contract.get("post_check", []),
+            "rollback": contract.get("rollback", []),
+        }
 
     def _apply_execution_result(self, plan: dict, result: dict, analysis: dict | None) -> bool:
         contract = plan.get("action_contract", {})
         followup_plan = None
-        if str(plan.get("family", "")).startswith("pop-cosmic"):
-            self.pop_cosmic_result = result
-            self._append_text(
-                self.pop_cosmic_action_view,
-                "\n".join(
-                    [
-                        f"Action status: {result.get('status')}",
-                        f"Action id: {result.get('action_id')}",
-                        result.get("output") or result.get("error") or "No output.",
-                    ]
-                ),
-            )
-        if result["status"] == "completed":
-            analysis = analysis or {}
-            followup_plan = self._prepare_followup_plan_from_execution(plan, result, analysis)
-            analysis_label = f"Local model analysis [{analysis.get('model')}]" if analysis.get("model") else "Local model analysis"
-            body_lines = [
-                "Execution completed.",
-                "",
-                f"Selected plan: {plan['title']}",
-                f"Action id: {contract.get('id', 'unknown')}",
-                "",
-                f"{analysis_label}:",
-                analysis.get("analysis", "No analysis was returned."),
-            ]
-            if followup_plan:
-                body_lines.extend(
-                    [
-                        "",
-                        "Next executable recommendation:",
-                        self._plain_plan_summary(followup_plan),
-                        "",
-                        "Press Execute Current Recommendation to apply this fix, or type a change in Request Desk to modify it.",
-                    ]
-                )
-            body_lines.extend(
-                [
-                    "",
-                    "Command output:",
-                    result.get("output") or "No command output was returned.",
-                    "",
-                    "Post-check:",
-                    *(f"- {item}" for item in result.get("post_check", [])),
-                ]
-            )
-            body = "\n".join(body_lines)
-            status = (
-                "Investigation complete. A concrete fix is ready in Request Desk."
-                if followup_plan
-                else "Execution completed. The local model analyzed the output."
-            )
-            if plan is self.current_request_plan and not followup_plan:
-                self._set_text(
-                    self.request_plan_view,
+        title = str(plan.get("title", "Selected recommendation"))
+        status = "Execution finished."
+        try:
+            if str(plan.get("family", "")).startswith("pop-cosmic"):
+                self.pop_cosmic_result = result
+                self._append_text(
+                    self.pop_cosmic_action_view,
                     "\n".join(
                         [
-                            self._plain_plan_summary(plan),
-                            "",
-                            "Execution Result:",
-                            analysis.get("analysis", "No analysis was returned."),
+                            f"Action status: {result.get('status')}",
+                            f"Action id: {result.get('action_id')}",
+                            result.get("output") or result.get("error") or "No output.",
                         ]
                     ),
                 )
-        else:
-            self._record_execution_learning(plan, result, analysis, None)
-            gate_reasons = result.get("error") or "Execution is blocked by the current controls."
+            if result.get("status") == "completed":
+                analysis = analysis or {}
+                followup_plan = self._prepare_followup_plan_from_execution(plan, result, analysis)
+                analysis_label = f"Local model analysis [{analysis.get('model')}]" if analysis.get("model") else "Local model analysis"
+                body_lines = [
+                    "Execution completed.",
+                    "",
+                    f"Selected plan: {title}",
+                    f"Action id: {contract.get('id', 'unknown')}",
+                    "",
+                    f"{analysis_label}:",
+                    analysis.get("analysis", "No analysis was returned."),
+                ]
+                if followup_plan:
+                    body_lines.extend(
+                        [
+                            "",
+                            "Next executable recommendation:",
+                            self._plain_plan_summary(followup_plan),
+                            "",
+                            "Press Execute Current Recommendation to apply this fix, or type a change in Request Desk to modify it.",
+                        ]
+                    )
+                body_lines.extend(
+                    [
+                        "",
+                        "Command output:",
+                        result.get("output") or "No command output was returned.",
+                        "",
+                        "Post-check:",
+                        *(f"- {item}" for item in result.get("post_check", [])),
+                    ]
+                )
+                if result.get("history_error"):
+                    body_lines.extend(["", f"History note: {result['history_error']}"])
+                body = "\n".join(body_lines)
+                status = (
+                    "Investigation complete. A concrete fix is ready in Request Desk."
+                    if followup_plan
+                    else "Execution completed. The local model analyzed the output."
+                )
+                if plan is self.current_request_plan and not followup_plan:
+                    self._set_text(
+                        self.request_plan_view,
+                        "\n".join(
+                            [
+                                self._plain_plan_summary(plan),
+                                "",
+                                "Execution Result:",
+                                analysis.get("analysis", "No analysis was returned."),
+                            ]
+                        ),
+                    )
+            else:
+                self._record_execution_learning(plan, result, analysis, None)
+                gate_reasons = result.get("error") or "Execution is blocked by the current controls."
+                body = "\n".join(
+                    [
+                        "Execution did not run.",
+                        "",
+                        f"Selected plan: {title}",
+                        f"Action id: {contract.get('id', 'unknown')}",
+                        f"Status: {result.get('status', 'unknown')}",
+                        "",
+                        "Reason:",
+                        gate_reasons,
+                        "",
+                        (
+                            "Only exact plans in the user-level or elevated guarded catalogs can execute. "
+                            "Elevated plans also require the project elevated runner flag and OS administrator approval."
+                        ),
+                    ]
+                )
+                if result.get("history_error"):
+                    body = f"{body}\n\nHistory note: {result['history_error']}"
+                status = "Execution did not run. Review the gate reason."
+        except Exception as exc:
             body = "\n".join(
                 [
-                    "Execution did not run.",
+                    "Execution finished, but the desktop result view failed while updating.",
                     "",
-                    f"Selected plan: {plan['title']}",
+                    f"Selected plan: {title}",
                     f"Action id: {contract.get('id', 'unknown')}",
-                    f"Status: {result['status']}",
+                    f"Execution status: {result.get('status', 'unknown')}",
+                    f"Display error: {exc}",
                     "",
-                    "Reason:",
-                    gate_reasons,
-                    "",
-                    (
-                        "Only exact plans in the user-level or elevated guarded catalogs can execute. "
-                        "Elevated plans also require the project elevated runner flag and OS administrator approval."
-                    ),
+                    "The action result was still returned to the desktop worker. Refresh History or restart the app to recover the view.",
                 ]
             )
-            status = "Execution did not run. Review the gate reason."
-        self._show_action_dialog("Execute Selected Fix", body)
-        self._refresh_history_view()
-        self._refresh_approval_queue()
+            status = "Execution finished, but the desktop result view hit an error."
+        refresh_errors = []
+        try:
+            self._refresh_history_view()
+        except Exception as exc:
+            refresh_errors.append(f"history refresh failed: {exc}")
+        try:
+            self._refresh_approval_queue()
+        except Exception as exc:
+            refresh_errors.append(f"approval queue refresh failed: {exc}")
         self._set_execution_buttons_sensitive(True)
+        if refresh_errors:
+            status = f"{status} {'; '.join(refresh_errors)}"
         self._set_status(status)
+        self._show_action_dialog("Execute Selected Fix", body)
         return False
 
     def _pop_cosmic_concern(self) -> str:

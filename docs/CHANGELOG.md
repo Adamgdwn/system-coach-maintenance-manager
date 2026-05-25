@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Hardened the native GTK execution flow so completed actions restore status/buttons before showing result dialogs, surface model-analysis progress, and report worker/post-processing failures without leaving the UI stuck in an executing state.
 - Shortened guarded action confirmation text to the exact all-caps phrase `APPROVE` while preserving server-side plan lookup and exact confirmation enforcement.
 - Tightened the native GTK header by reducing the hero banner height and combining the status and local-AI state strips into one row.
 - Removed the duplicate native GTK top navigation row so the notebook tabs are the single page navigation path and the main panels have more vertical room.
