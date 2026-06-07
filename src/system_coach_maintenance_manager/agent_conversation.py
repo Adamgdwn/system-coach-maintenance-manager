@@ -10,6 +10,10 @@ from typing import Any
 
 from . import autonomy_controls
 
+GREETING_LOADING = "Checking your machine…"
+GREETING_HEALTHY = "Everything looks clean — anything on your mind?"
+GREETING_PARTIAL_FAILURE = "I couldn't complete all checks — here's what I got."
+
 EVENT_AGENT_TOKEN = "agent_token"
 EVENT_ACTION_PROPOSED = "action_proposed"
 EVENT_ACTION_RESULT = "action_result"
@@ -199,3 +203,98 @@ def session_info(handle: str) -> dict[str, Any]:
         "history_length": len(session.history()),
         "pending_action": session.pending_action(),
     }
+
+
+# ---------------------------------------------------------------------------
+# Greeting generator (pure — no I/O, no GTK dependency)
+# ---------------------------------------------------------------------------
+
+def _open_question_for_findings(findings: list[dict[str, Any]]) -> str:
+    """Pick the most relevant follow-up question for a set of urgent findings."""
+    ids = {f.get("id", "") for f in findings}
+    if any(fid.startswith("disk-") for fid in ids):
+        return "Want to start with the disk space situation?"
+    if "memory-pressure" in ids:
+        return "Should we take a closer look at memory usage first?"
+    if "failed-services" in ids:
+        return "Want to investigate the failed services?"
+    if "journal-errors" in ids:
+        return "Should we look at the critical log entries together?"
+    if "network-basics" in ids:
+        return "Want to check what the network evidence says?"
+    if "package-manager-health" in ids:
+        return "Want me to walk through the package manager issue?"
+    return "Where would you like to start?"
+
+
+def generate_greeting(diagnostic_report: dict[str, Any] | None) -> str:
+    """Map a completed diagnostic report to an opening greeting string.
+
+    Four states:
+      partial   — report is None or contains an ``error`` key
+      healthy   — no warning/critical findings
+      findings  — one or more warning/critical findings (brief summary + open question)
+
+    The ``loading`` state ("Checking your machine…") is emitted by
+    ``launch_diagnostic_greeting`` before the background thread starts; it is
+    not returned by this function.
+    """
+    if not diagnostic_report or "error" in diagnostic_report:
+        return GREETING_PARTIAL_FAILURE
+
+    findings = diagnostic_report.get("findings", [])
+    urgent = [f for f in findings if f.get("severity") in {"critical", "warning"}]
+
+    if not urgent:
+        return GREETING_HEALTHY
+
+    count = len(urgent)
+    titles = [f.get("title") or f.get("id") or "finding" for f in urgent[:3]]
+    summary = ", ".join(titles)
+    if count > 3:
+        summary += f", and {count - 3} more"
+
+    question = _open_question_for_findings(urgent)
+    noun = "item" if count == 1 else "items"
+    return f"I found {count} {noun} worth your attention: {summary}.\n\n{question}"
+
+
+def launch_diagnostic_greeting(
+    handle: str,
+    *,
+    collect_fn: Callable[[], dict[str, Any]] | None = None,
+    on_loading: Callable[[str], None] | None = None,
+) -> None:
+    """Trigger diagnostic collection in a background thread and emit a greeting.
+
+    ``collect_fn`` is injectable for tests; when omitted, ``collect_diagnostics``
+    is imported lazily so there is no circular import at module load time.
+
+    ``on_loading`` is called synchronously on the caller's thread before the
+    background thread starts — use it to update a status label.  For GTK callers
+    the callback is already on the main thread; no ``GLib.idle_add`` needed there.
+
+    The greeting is recorded in session history and emitted as:
+      - one ``agent_token`` event (the full greeting text as a single token)
+      - one ``session_done`` event with a ``greeting`` key
+    """
+    if on_loading is not None:
+        on_loading(GREETING_LOADING)
+
+    def _worker() -> None:
+        try:
+            if collect_fn is not None:
+                report: dict[str, Any] = collect_fn()
+            else:
+                from .diagnostics import collect_diagnostics  # lazy — avoids circular import
+                report = collect_diagnostics()
+        except Exception as exc:
+            report = {"error": str(exc)}
+
+        greeting = generate_greeting(report)
+        session = _get_session(handle)
+        session.append_message("agent", greeting, metadata={"source": "diagnostic-greeting"})
+        _emit(handle, EVENT_AGENT_TOKEN, {"handle": handle, "token": greeting})
+        _emit(handle, EVENT_SESSION_DONE, {"handle": handle, "greeting": greeting})
+
+    threading.Thread(target=_worker, daemon=True).start()

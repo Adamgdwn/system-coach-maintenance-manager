@@ -291,7 +291,7 @@ Status: completed — 2026-06-07 13:02.
 
 ## Chunk 25: Auto-Launch Diagnostic Greeting
 
-Status: planned.
+Status: completed — 2026-06-07 10:15.
 
 - On desktop open, trigger diagnostics and agent probes automatically via `agent_conversation.py`.
 - Conversation engine formats results as a natural opening message; streams tokens into the session.

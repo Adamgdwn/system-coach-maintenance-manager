@@ -14,6 +14,7 @@ gi.require_version("Gtk", "3.0")
 
 from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 
+from . import agent_conversation
 from .agents import build_agents
 from .ai_engine import analyze_action_result, answer_question, get_engine_status, reason_about_maintenance_plan, reason_about_request
 from .diagnostics import collect_diagnostics
@@ -480,6 +481,12 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self._hide_working_drama()
         self._refresh_engine_status()
         self._refresh_model_provider_status()
+        self._conv_handle = agent_conversation.start_session()
+        agent_conversation.on_event(self._conv_handle, self._on_conv_event)
+        agent_conversation.launch_diagnostic_greeting(
+            self._conv_handle,
+            on_loading=lambda msg: self._set_status(msg),
+        )
         self.on_run_review(None)
         self.on_run_maintenance(None)
         self.on_refresh_history(None)
@@ -1074,6 +1081,19 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             state = "available" if mode.get("available") else "not ready"
             lines.append(f"- {mode.get('label')}: {state}. {mode.get('message', '')}")
         self._set_text(self.model_provider_view, "\n".join(lines))
+
+    def _on_conv_event(self, event_type: str, payload: dict) -> None:
+        """Receive conversation engine events from the worker thread; schedule GTK updates via idle_add."""
+        if event_type == agent_conversation.EVENT_AGENT_TOKEN:
+            GLib.idle_add(self._on_greeting_token, payload.get("token", ""))
+        elif event_type == agent_conversation.EVENT_SESSION_DONE and "greeting" in payload:
+            GLib.idle_add(self._set_status, "Ready — coach greeting complete.")
+        elif event_type == agent_conversation.EVENT_ERROR:
+            GLib.idle_add(self._set_status, f"Coach: {payload.get('error', 'unknown error')}")
+
+    def _on_greeting_token(self, token: str) -> bool:
+        self._append_text(self.coach_view, f"Coach: {token}")
+        return False
 
     def on_refresh_provider_clicked(self, _button: Gtk.Button | None) -> None:
         self._refresh_model_provider_status()
