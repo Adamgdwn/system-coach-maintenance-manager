@@ -12,7 +12,7 @@ Generated: 2026-04-05
 | Risk tier      | medium |
 | Stack          | not specified |
 | Primary model  | codex |
-| Location       | /home/adamgoodwin/code/Applications/system-coach-maintenance-manager |
+| Location       | /home/adamgoodwin/code/agents/system-coach-maintenance-manager |
 
 ## Build approach
 

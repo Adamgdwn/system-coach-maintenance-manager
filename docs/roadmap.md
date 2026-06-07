@@ -253,3 +253,118 @@ Status: completed.
 - Publish the `v0.1.0-alpha` prerelease with alpha caveats, safety boundaries, validation notes, and screenshot assets.
 - Add branch protection requiring the `validation` CI check while leaving owner emergency control available.
 - Capture the whole GitHub public-alpha posture in `docs/github-public-alpha-handoff.md` so it can become a repeatable template for other repositories.
+
+## Chunk 22: Autonomy And Depth Control Framework
+
+Status: planned.
+
+- Record owner governance decision: risk_tier lowered to low at G1; autonomy gate is the compensating control.
+- Add `agent_autonomy_level` (A0–A4) and `agent_depth_level` (D1–D4) to `project-control.yaml`.
+- Create `autonomy_controls.py`: loads both settings, exposes `can_auto_execute(tier)` and `max_depth()`.
+- Update `maintenance_actions.py` and `action_plan_registry.py` execution gates to read autonomy level.
+- Add `docs/adrs/0002-autonomy-depth-model.md` recording the tier definitions and compensating controls.
+- Tests: autonomy gate blocks out-of-level execution, depth gate returns correct scope.
+- Non-goals: no UI yet, no changes to existing guarded catalog.
+
+## Chunk 23: Conversation Engine Core
+
+Status: planned.
+
+- Create `agent_conversation.py`: owns session state, conversation history, pending action tracking, and streaming token assembly.
+- Public interface: `start_session()`, `submit_message(handle, text)`, `on_event(handle, callback)`.
+- Events emitted: `agent_token`, `action_proposed`, `action_result`, `session_done`, `error`.
+- Reads autonomy and depth level from `autonomy_controls.py` on session start.
+- Does NOT own UI, diagnostic execution, or action execution — calls existing modules through their public APIs.
+- Tests: state machine transitions, autonomy-level event suppression, concurrent-safe callback ordering.
+- Non-goals: no GTK changes, no streaming to Ollama yet.
+
+## Chunk 24: Parallel Diagnostics And Agent Probes
+
+Status: planned.
+
+- Wrap `collect_diagnostics()` checks in `concurrent.futures.ThreadPoolExecutor`; all eight checks run in parallel.
+- Wrap `build_agents()` probe execution in the same pattern in `server.py` and `desktop_app.py`.
+- Move `import json` from inside `_mount_snapshot()` to the top of `diagnostics.py`.
+- Add 30-second TTL cache for `get_engine_status()` in `ai_engine.py`; expose `invalidate_engine_cache()`.
+- Tests: parallel result set matches serial result set on mock data; cache returns stale value within TTL and fresh after.
+- Non-goals: no streaming, no new diagnostic probes yet.
+
+## Chunk 25: Auto-Launch Diagnostic Greeting
+
+Status: planned.
+
+- On desktop open, trigger diagnostics and agent probes automatically via `agent_conversation.py`.
+- Conversation engine formats results as a natural opening message; streams tokens into the session.
+- States: loading ("Checking your machine…"), healthy empty ("Everything looks clean — anything on your mind?"), findings present (brief summary + one open question), partial-failure ("I couldn't complete all checks — here's what I got").
+- Greeting generator is a pure function in `agent_conversation.py` tested independently of GTK.
+- Tests: greeting output for healthy, degraded, and empty diagnostic mocks; partial-failure state.
+- Non-goals: no GTK bubble UI yet (greeting posts to a stub callback), no aesthetic changes.
+
+## Chunk 26: Conversation Bubble UI
+
+Status: planned.
+
+- Replace desktop main area with a `Gtk.ListBox` conversation thread.
+- Agent bubbles left-aligned; user bubbles right-aligned; command output in monospace inline blocks.
+- Single `Gtk.Entry` input bar at the bottom; Enter submits, Shift-Enter inserts newline.
+- Streaming: `agent_token` events append text to the active bubble via `GLib.idle_add`.
+- Suggested reply chips (flat `Gtk.Button` row) appear below agent messages when options are provided.
+- UX states: typing indicator while agent is working; disabled input while diagnostics run; scroll-to-bottom on new message.
+- Non-goals: no aesthetic overhaul yet, Approval Queue tab kept until Chunk 27.
+
+## Chunk 27: Inline Action Approval
+
+Status: planned.
+
+- Action proposals surface as inline cards in the conversation thread instead of the Approval Queue tab.
+- Card shows: title, risk, reversible flag, privilege level, command preview, and action buttons.
+- At A1: "Run it" requires explicit click. At A2: countdown timer (5 s, cancelable) then auto-fires. At A3+: fires immediately with a cancel window. At A0: card not shown; agent states it cannot act.
+- Execution still goes through `action_plan_registry.execute_registered_action()`; server-side integrity gate unchanged.
+- Result streams inline below the card; history record written as before.
+- Remove Approval Queue tab and its panel code once inline cards are live.
+- Tests: each autonomy level produces correct card behavior on mock action; duplicate-click prevention; countdown cancellation.
+- Non-goals: no elevated Polkit UI changes.
+
+## Chunk 28: Streaming AI Responses
+
+Status: planned.
+
+- Add streaming code path to `ai_engine.py` using Ollama `stream: true` NDJSON output.
+- Conversational responses (greeting analysis, question answers, action result summaries) use streaming.
+- JSON-structured reasoning calls (request family, maintenance plan) keep `stream: false`.
+- `agent_conversation.py` emits `agent_token` events as tokens arrive; GTK bubble updates in real time.
+- Graceful fallback: if streaming fails mid-response, emit what arrived and an error event.
+- Tests: token sequence assembled correctly from mock NDJSON; fallback fires on truncated stream.
+- Non-goals: no streaming for structured JSON calls, no Ollama API changes.
+
+## Chunk 29: Aesthetic And UX Redesign
+
+Status: planned.
+
+- CSS-only overhaul: warm dark background, monospace throughout, terminal-style command blocks, conversation bubble styling, minimal chrome.
+- Remove grid and panel visual elements from Review and History surfaces; surface their content inline in the conversation or as collapsible drawers.
+- Thin persistent status strip at top: disk %, memory %, active model name, working pulse indicator.
+- No behavior changes in this chunk — pure style and layout.
+- Validate: all existing UX states (loading, empty, success, error) remain legible in new theme.
+- Non-goals: no new features, no GTK widget changes.
+
+## Chunk 30: Diagnostic Depth Expansion
+
+Status: planned.
+
+- Add D2 probes to `diagnostics.py`: CPU/GPU temperature via `sensors`, NVMe health via `nvme smart-log`, top memory/CPU consumers via `/proc`.
+- Add D3 probes: `dmesg` error grouping, `lspci`/`lsusb` device enumeration, `journalctl -b` boot log summary, display topology via `cosmic-randr` or `wlr-randr`.
+- Each probe gated by `autonomy_controls.max_depth()` — D1 behaviour unchanged at default settings.
+- Agent conversation surfaces depth-specific findings with plain-language summaries.
+- Tests: D2 and D3 probes return correct shape on mocked command output; D1 session does not call D2/D3 commands.
+- Non-goals: no root-required probes, no firmware reads.
+
+## Chunk 31: History Pruning And Private AI Boundary Cleanup
+
+Status: planned.
+
+- Add configurable `max_history_records` (default 500) to `maintenance_history.py`; prune oldest on write when exceeded.
+- Expose `call_model(model, prompt, *, format_json, timeout)` as a public function in `ai_engine.py`; update `pop_cosmic_brain.py` to use it instead of importing `_post_json` and `_extract_json_object` directly.
+- `request_plans.py` family routing split: extract each family's `_prepare_*_plan()` into a `plans/` subpackage; `request_plans.py` becomes a thin router over the subpackage's public API.
+- Tests: history file prunes correctly at limit boundary; `pop_cosmic_brain` still produces valid analysis through the new public interface.
+- Non-goals: no behavior changes to existing plan families, no new plan families.

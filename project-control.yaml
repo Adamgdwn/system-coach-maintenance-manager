@@ -1,7 +1,10 @@
 project_name: system-coach-maintenance-manager
 project_type: internal-tool
-risk_tier: medium
+risk_tier: low
 governance_level: 1
+# Owner decision 2026-06-07: risk_tier set to low by explicit owner instruction.
+# Functional classification is AI-agent-with-tools; the autonomy gate framework
+# (Chunk 22) is the compensating control that keeps this acceptable at low/G1.
 repository_model: single-repo
 owner:
   name: Adam Goodwin
