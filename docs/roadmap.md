@@ -280,7 +280,7 @@ Status: completed — 2026-06-07 11:14.
 
 ## Chunk 24: Parallel Diagnostics And Agent Probes
 
-Status: planned.
+Status: completed — 2026-06-07 13:02.
 
 - Wrap `collect_diagnostics()` checks in `concurrent.futures.ThreadPoolExecutor`; all eight checks run in parallel.
 - Wrap `build_agents()` probe execution in the same pattern in `server.py` and `desktop_app.py`.

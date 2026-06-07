@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-import datetime as dt
+import concurrent.futures
 import ctypes
+import datetime as dt
+import json
 import os
 import platform
 from pathlib import Path
@@ -181,8 +183,6 @@ def _mount_snapshot(path: Path) -> dict:
             "available": True,
             "error": result["output"],
         }
-
-    import json
 
     try:
         payload = json.loads(result["output"])
@@ -749,31 +749,55 @@ def _doctor_finding(commands: list[dict]) -> dict:
 
 
 def collect_diagnostics() -> dict:
-    """Collect read-only local maintenance diagnostics."""
+    """Collect read-only local maintenance diagnostics.
 
+    All eight check groups run concurrently via a ThreadPoolExecutor so that
+    slow subprocess calls (systemctl, journalctl, apt-get, findmnt) do not
+    block one another.
+    """
     os_name = platform.system() or "Unknown"
-    disk_paths = _disk_paths(os_name)
 
-    disk_snapshots = [_disk_snapshot(path) for path in disk_paths]
-    mounts = [_mount_snapshot(path) for path in disk_paths]
-    meminfo = _memory_values(os_name)
-    readiness_commands = ("wevtutil", "route", "winget") if os_name.lower().startswith("win") else (
-        "findmnt",
-        "systemctl",
-        "journalctl",
-        "ip",
-    )
-    command_readiness = [_command_available(command) for command in readiness_commands]
+    def _run_disk_checks() -> tuple[list[dict], list[dict], list[dict]]:
+        disk_paths = _disk_paths(os_name)
+        snapshots = [_disk_snapshot(p) for p in disk_paths]
+        mounts = [_mount_snapshot(p) for p in disk_paths]
+        return snapshots, mounts, _disk_findings(snapshots)
+
+    def _run_memory_check() -> tuple[dict, dict]:
+        meminfo = _memory_values(os_name)
+        return meminfo, _memory_finding(meminfo)
+
+    def _run_doctor_check() -> dict:
+        readiness_commands = (
+            ("wevtutil", "route", "winget")
+            if os_name.lower().startswith("win")
+            else ("findmnt", "systemctl", "journalctl", "ip")
+        )
+        command_readiness = [_command_available(cmd) for cmd in readiness_commands]
+        return _doctor_finding(command_readiness)
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        disk_fut = executor.submit(_run_disk_checks)
+        memory_fut = executor.submit(_run_memory_check)
+        doctor_fut = executor.submit(_run_doctor_check)
+        load_fut = executor.submit(_load_finding)
+        services_fut = executor.submit(_failed_services_finding, os_name)
+        journal_fut = executor.submit(_journal_finding, os_name)
+        network_fut = executor.submit(_network_finding, os_name)
+        package_fut = executor.submit(_package_finding, os_name)
+
+    disk_snapshots, mounts, disk_finding_list = disk_fut.result()
+    meminfo, memory_finding_result = memory_fut.result()
 
     findings = [
-        _doctor_finding(command_readiness),
-        *_disk_findings(disk_snapshots),
-        _memory_finding(meminfo),
-        _load_finding(),
-        _failed_services_finding(os_name),
-        _journal_finding(os_name),
-        _network_finding(os_name),
-        _package_finding(os_name),
+        doctor_fut.result(),
+        *disk_finding_list,
+        memory_finding_result,
+        load_fut.result(),
+        services_fut.result(),
+        journal_fut.result(),
+        network_fut.result(),
+        package_fut.result(),
     ]
 
     command_log = []

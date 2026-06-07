@@ -9,12 +9,19 @@ from system_coach_maintenance_manager.ai_engine import (
     build_request_reasoning_prompt,
     choose_model,
     choose_request_brain_model,
+    invalidate_engine_cache,
     reason_about_maintenance_plan,
     reason_about_request,
 )
 
 
 class AiEngineTests(unittest.TestCase):
+    def setUp(self):
+        invalidate_engine_cache()
+
+    def tearDown(self):
+        invalidate_engine_cache()
+
     def test_choose_model_prefers_known_models(self):
         model = choose_model(["mistral", "gemma4:latest", "qwen3:8b", "other"])
         self.assertEqual(model, "qwen3:8b")

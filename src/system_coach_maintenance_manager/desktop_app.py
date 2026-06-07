@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 import datetime as dt
 import json
 import threading
@@ -256,7 +257,9 @@ paned separator {
 
 
 def build_report() -> dict:
-    results = [agent.run() for agent in build_agents()]
+    agents = build_agents()
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        results = list(executor.map(lambda a: a.run(), agents))
     return generate_report(results)
 
 

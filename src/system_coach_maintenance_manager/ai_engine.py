@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import re
+import threading
+import time
 from typing import Any
 import urllib.error
 import urllib.request
@@ -32,6 +34,11 @@ PREFERRED_MODELS = [
     "mistral",
 ]
 REQUEST_BRAIN_MODELS = ["qwen3:8b", "qwen3", "gemma4:latest", "gemma4", "gemma4:e4b", "deepseek-r1:14b", "gpt-oss:20b"]
+_ENGINE_STATUS_TTL = 30.0
+_engine_status_cache: dict[str, Any] | None = None
+_engine_status_expiry: float = 0.0
+_engine_cache_lock = threading.Lock()
+
 REQUEST_FAMILIES = {
     "unknown",
     "cursor-size",
@@ -64,7 +71,7 @@ def _get_json(path: str, timeout: int = 5) -> dict[str, Any]:
         return json.load(response)
 
 
-def get_engine_status() -> dict[str, Any]:
+def _fetch_engine_status() -> dict[str, Any]:
     base_url = configured_ollama_url()
     try:
         data = _get_json("/api/tags")
@@ -95,6 +102,27 @@ def get_engine_status() -> dict[str, Any]:
         "selected_model": selected_model,
         "message": f"Using local model {selected_model} through Ollama.",
     }
+
+
+def get_engine_status() -> dict[str, Any]:
+    """Return Ollama engine status, cached for 30 seconds."""
+    global _engine_status_cache, _engine_status_expiry
+    with _engine_cache_lock:
+        now = time.monotonic()
+        if _engine_status_cache is not None and now < _engine_status_expiry:
+            return _engine_status_cache
+        result = _fetch_engine_status()
+        _engine_status_cache = result
+        _engine_status_expiry = now + _ENGINE_STATUS_TTL
+        return result
+
+
+def invalidate_engine_cache() -> None:
+    """Force the next ``get_engine_status()`` call to re-query Ollama."""
+    global _engine_status_cache, _engine_status_expiry
+    with _engine_cache_lock:
+        _engine_status_cache = None
+        _engine_status_expiry = 0.0
 
 
 def choose_model(models: list[str]) -> str | None:
