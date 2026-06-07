@@ -268,7 +268,7 @@ Status: completed — 2026-06-07 09:33.
 
 ## Chunk 23: Conversation Engine Core
 
-Status: planned.
+Status: completed — 2026-06-07 11:14.
 
 - Create `agent_conversation.py`: owns session state, conversation history, pending action tracking, and streaming token assembly.
 - Public interface: `start_session()`, `submit_message(handle, text)`, `on_event(handle, callback)`.
