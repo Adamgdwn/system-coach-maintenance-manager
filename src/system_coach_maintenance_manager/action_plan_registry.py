@@ -8,6 +8,7 @@ import datetime as dt
 import threading
 import uuid
 
+from . import autonomy_controls
 from .maintenance_actions import action_contract_fingerprint, execute_guarded_action
 
 
@@ -103,6 +104,8 @@ class ActionPlanRegistry:
             return deepcopy(stored) if stored else None
 
     def execute(self, server_plan_id: str, confirmation_text: str) -> dict:
+        if not autonomy_controls.execution_allowed():
+            return _blocked_result(server_plan_id, "autonomy level A0 disables action execution; set agent_autonomy_level to A1 or higher")
         with self._lock:
             self._purge_expired_locked()
             stored = self._plans.get(server_plan_id)

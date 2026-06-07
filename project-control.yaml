@@ -56,7 +56,8 @@ controls:
 exceptions: []
 agent_controls:
   applicable: true
-  autonomy_level: A1
+  agent_autonomy_level: A1
+  agent_depth_level: D1
   model_registry:
     - provider: ollama
       model: qwen3:8b

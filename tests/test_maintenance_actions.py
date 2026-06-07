@@ -21,7 +21,7 @@ class MaintenanceActionsTests(unittest.TestCase):
                 [
                     "governance_level: 1",
                     "agent_controls:",
-                    "  autonomy_level: A1",
+                    "  agent_autonomy_level: A1",
                 ]
             )
         )
@@ -50,7 +50,7 @@ class MaintenanceActionsTests(unittest.TestCase):
         self.assertIn("action_runner_enabled", result["error"])
 
     def test_contract_marks_privileged_or_placeholder_plans_ineligible(self):
-        control_path = self._project_control("governance_level: 1\nautonomy_level: A1\naction_runner_enabled: true\n")
+        control_path = self._project_control("governance_level: 1\nagent_autonomy_level: A1\naction_runner_enabled: true\n")
         plan = {
             "id": "plan-failed-services",
             "finding_id": "failed-services",
@@ -72,7 +72,7 @@ class MaintenanceActionsTests(unittest.TestCase):
         self.assertTrue(any("placeholder" in reason for reason in contract["eligibility_notes"]))
 
     def test_enabled_low_risk_contract_executes_guarded_command(self):
-        control_path = self._project_control("governance_level: 1\nautonomy_level: A1\naction_runner_enabled: true\n")
+        control_path = self._project_control("governance_level: 1\nagent_autonomy_level: A1\naction_runner_enabled: true\n")
         plan = {
             "id": "request-cursor-size-linux",
             "family": "cursor-size",
@@ -105,7 +105,7 @@ class MaintenanceActionsTests(unittest.TestCase):
         self.assertEqual(run.call_count, 2)
 
     def test_enabled_contract_blocks_empty_confirmation(self):
-        control_path = self._project_control("governance_level: 1\nautonomy_level: A1\naction_runner_enabled: true\n")
+        control_path = self._project_control("governance_level: 1\nagent_autonomy_level: A1\naction_runner_enabled: true\n")
         plan = {
             "id": "request-cursor-size-linux",
             "family": "cursor-size",
@@ -131,7 +131,7 @@ class MaintenanceActionsTests(unittest.TestCase):
         run.assert_not_called()
 
     def test_enabled_contract_blocks_wrong_confirmation(self):
-        control_path = self._project_control("governance_level: 1\nautonomy_level: A1\naction_runner_enabled: true\n")
+        control_path = self._project_control("governance_level: 1\nagent_autonomy_level: A1\naction_runner_enabled: true\n")
         plan = {
             "id": "request-cursor-size-linux",
             "family": "cursor-size",
@@ -156,7 +156,7 @@ class MaintenanceActionsTests(unittest.TestCase):
         run.assert_not_called()
 
     def test_enabled_contract_blocks_missing_confirmation_phrase(self):
-        control_path = self._project_control("governance_level: 1\nautonomy_level: A1\naction_runner_enabled: true\n")
+        control_path = self._project_control("governance_level: 1\nagent_autonomy_level: A1\naction_runner_enabled: true\n")
         plan = {
             "id": "request-cursor-size-linux",
             "family": "cursor-size",
@@ -182,7 +182,7 @@ class MaintenanceActionsTests(unittest.TestCase):
         run.assert_not_called()
 
     def test_read_only_evidence_plan_executes_guarded_commands(self):
-        control_path = self._project_control("governance_level: 1\nautonomy_level: A1\naction_runner_enabled: true\n")
+        control_path = self._project_control("governance_level: 1\nagent_autonomy_level: A1\naction_runner_enabled: true\n")
         plan = {
             "id": "plan-journal-errors",
             "finding_id": "journal-errors",
@@ -211,7 +211,7 @@ class MaintenanceActionsTests(unittest.TestCase):
         self.assertEqual(run.call_count, 1)
 
     def test_display_dock_evidence_plan_executes_guarded_read_only_commands(self):
-        control_path = self._project_control("governance_level: 1\nautonomy_level: A1\naction_runner_enabled: true\n")
+        control_path = self._project_control("governance_level: 1\nagent_autonomy_level: A1\naction_runner_enabled: true\n")
         plan = {
             "id": "request-display-dock-linux",
             "family": "display-dock",
@@ -240,7 +240,7 @@ class MaintenanceActionsTests(unittest.TestCase):
         self.assertEqual(run.call_count, 5)
 
     def test_display_layout_fix_executes_guarded_cosmic_command(self):
-        control_path = self._project_control("governance_level: 1\nautonomy_level: A1\naction_runner_enabled: true\n")
+        control_path = self._project_control("governance_level: 1\nagent_autonomy_level: A1\naction_runner_enabled: true\n")
         plan = {
             "id": "request-display-layout-fix-dvi-i-1",
             "family": "display-layout-fix",
@@ -274,7 +274,7 @@ class MaintenanceActionsTests(unittest.TestCase):
         self.assertEqual(run.call_count, 2)
 
     def test_pop_cosmic_panel_restart_allows_only_exact_panel_termination(self):
-        control_path = self._project_control("governance_level: 1\nautonomy_level: A1\naction_runner_enabled: true\n")
+        control_path = self._project_control("governance_level: 1\nagent_autonomy_level: A1\naction_runner_enabled: true\n")
         plan = {
             "id": "request-pop-cosmic-panel-restart-linux",
             "family": "pop-cosmic-panel-restart",
@@ -303,7 +303,7 @@ class MaintenanceActionsTests(unittest.TestCase):
         self.assertEqual(run.call_args.args[0], ["pkill", "-TERM", "-x", "cosmic-panel"])
 
     def test_pop_cosmic_panel_restart_blocks_broad_pkill(self):
-        control_path = self._project_control("governance_level: 1\nautonomy_level: A1\naction_runner_enabled: true\n")
+        control_path = self._project_control("governance_level: 1\nagent_autonomy_level: A1\naction_runner_enabled: true\n")
         plan = {
             "id": "request-pop-cosmic-panel-restart-linux",
             "family": "pop-cosmic-panel-restart",
@@ -325,7 +325,7 @@ class MaintenanceActionsTests(unittest.TestCase):
         self.assertTrue(any("exact approved current-user panel restart" in reason for reason in contract["eligibility_notes"]))
 
     def test_elevated_plan_requires_elevated_runner_flag(self):
-        control_path = self._project_control("governance_level: 1\nautonomy_level: A1\naction_runner_enabled: true\n")
+        control_path = self._project_control("governance_level: 1\nagent_autonomy_level: A1\naction_runner_enabled: true\n")
         plan = {
             "id": "plan-package-manager-health",
             "family": "package-manager-health",
@@ -349,7 +349,7 @@ class MaintenanceActionsTests(unittest.TestCase):
 
     def test_elevated_plan_executes_through_pkexec(self):
         control_path = self._project_control(
-            "governance_level: 1\nautonomy_level: A1\naction_runner_enabled: true\nelevated_action_runner_enabled: true\n"
+            "governance_level: 1\nagent_autonomy_level: A1\naction_runner_enabled: true\nelevated_action_runner_enabled: true\n"
         )
         plan = {
             "id": "plan-package-manager-health",

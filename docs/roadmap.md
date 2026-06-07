@@ -256,7 +256,7 @@ Status: completed.
 
 ## Chunk 22: Autonomy And Depth Control Framework
 
-Status: planned.
+Status: completed — 2026-06-07 09:33.
 
 - Record owner governance decision: risk_tier lowered to low at G1; autonomy gate is the compensating control.
 - Add `agent_autonomy_level` (A0–A4) and `agent_depth_level` (D1–D4) to `project-control.yaml`.

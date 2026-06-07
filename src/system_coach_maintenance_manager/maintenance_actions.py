@@ -12,6 +12,8 @@ import shlex
 import shutil
 import subprocess
 
+from . import autonomy_controls
+
 
 DEFAULT_TIMEOUT_SECONDS = 30
 CONTRACT_VERSION = "approved-action-contract-v1"
@@ -127,7 +129,7 @@ def load_runner_controls(project_control_path: Path | None = None) -> dict:
                 controls["governance_level"] = int(raw_value)
             except ValueError:
                 controls["governance_level"] = None
-        elif stripped.startswith("autonomy_level:"):
+        elif stripped.startswith("agent_autonomy_level:"):
             controls["autonomy_level"] = stripped.split(":", 1)[1].strip()
         elif stripped.startswith("action_runner_enabled:"):
             raw_value = stripped.split(":", 1)[1].strip().lower()
@@ -185,11 +187,12 @@ def _candidate_assessment(plan: dict) -> dict:
 def _execution_gate(controls: dict, assessment: dict) -> dict:
     reasons = []
     governance_level = controls.get("governance_level")
-    autonomy_level = controls.get("autonomy_level")
+    project_control_path = controls.get("source")
+    path_arg = Path(project_control_path) if project_control_path else None
     if governance_level != 1:
         reasons.append("guarded execution currently requires governance level 1 approval controls")
-    if autonomy_level != "A1":
-        reasons.append("guarded execution currently requires A1 user-approved autonomy")
+    if not autonomy_controls.execution_allowed(path_arg):
+        reasons.append("autonomy level A0 disables action execution; set agent_autonomy_level to A1 or higher")
     if not controls.get("action_runner_enabled"):
         reasons.append("action_runner_enabled is not set in project controls")
     if assessment["execution_mode"] == "elevated" and not controls.get("elevated_action_runner_enabled"):
