@@ -302,7 +302,7 @@ Status: completed — 2026-06-07 10:15.
 
 ## Chunk 26: Conversation Bubble UI
 
-Status: planned.
+Status: completed — 2026-06-07 14:30.
 
 - Replace desktop main area with a `Gtk.ListBox` conversation thread.
 - Agent bubbles left-aligned; user bubbles right-aligned; command output in monospace inline blocks.

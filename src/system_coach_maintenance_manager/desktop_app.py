@@ -254,6 +254,71 @@ flowboxchild {
 paned separator {
   background-color: rgba(84, 62, 34, 0.14);
 }
+
+.conv-list {
+  background-color: transparent;
+  border: 0;
+  padding: 8px 4px;
+}
+
+list.conv-list > row {
+  background-color: transparent;
+  border: 0;
+  padding: 2px 0;
+}
+
+list.conv-list > row:hover {
+  background-color: transparent;
+}
+
+.bubble-agent {
+  background-color: rgba(255, 252, 247, 0.95);
+  border: 1px solid rgba(84, 62, 34, 0.14);
+  border-radius: 16px 16px 16px 4px;
+  padding: 10px 14px;
+}
+
+.bubble-user {
+  background-color: rgba(12, 122, 97, 0.09);
+  border: 1px solid rgba(12, 122, 97, 0.20);
+  border-radius: 16px 16px 4px 16px;
+  padding: 10px 14px;
+}
+
+.bubble-system {
+  color: #705d43;
+  padding: 2px 4px;
+}
+
+.bubble-typing {
+  color: #705d43;
+  background-color: rgba(255, 252, 247, 0.95);
+  border: 1px solid rgba(84, 62, 34, 0.14);
+  border-radius: 16px 16px 16px 4px;
+  padding: 10px 14px;
+  font-style: italic;
+}
+
+.reply-chip {
+  background-image: none;
+  background-color: rgba(12, 122, 97, 0.08);
+  border: 1px solid rgba(12, 122, 97, 0.22);
+  border-radius: 999px;
+  padding: 3px 10px;
+  min-height: 26px;
+  box-shadow: none;
+}
+
+.reply-chip label {
+  color: #0c7a61;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.reply-chip:hover {
+  background-image: none;
+  background-color: rgba(12, 122, 97, 0.16);
+}
 """
 
 
@@ -305,6 +370,8 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self.working_visible_until: dt.datetime | None = None
         self.working_active = False
         self.working_status_base: str | None = None
+        self._active_bubble_label: Gtk.Label | None = None
+        self._typing_row: Gtk.ListBoxRow | None = None
 
         self.app_overlay = Gtk.Overlay()
         self.app_overlay.set_hexpand(True)
@@ -485,7 +552,7 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         agent_conversation.on_event(self._conv_handle, self._on_conv_event)
         agent_conversation.launch_diagnostic_greeting(
             self._conv_handle,
-            on_loading=lambda msg: self._set_status(msg),
+            on_loading=lambda msg: self._on_diagnostics_loading(msg),
         )
         self.on_run_review(None)
         self.on_run_maintenance(None)
@@ -867,23 +934,40 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             button.connect("clicked", self.on_prompt_clicked, prompt)
             prompts_row.add(button)
 
-        self.coach_question_entry = Gtk.Entry()
-        self.coach_question_entry.set_placeholder_text("Ask a question about your environment, tools, or selected roots...")
-        self.coach_question_entry.connect("activate", self.on_ask_coach)
-        self.coach_page.pack_start(self.coach_question_entry, False, False, 0)
+        # Conversation thread — ListBox inside a ScrolledWindow
+        self._conv_scroll = Gtk.ScrolledWindow()
+        self._add_class(self._conv_scroll, "app-scroll")
+        self._conv_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self._conv_scroll.set_hexpand(True)
+        self._conv_scroll.set_vexpand(True)
+        self.coach_page.pack_start(self._conv_scroll, True, True, 0)
 
-        coach_actions = self._make_wrapping_flow()
-        self.coach_page.pack_start(coach_actions, False, False, 0)
-        self.ask_button = Gtk.Button(label="Ask Local AI")
-        self.ask_button.connect("clicked", self.on_ask_coach)
-        coach_actions.add(self.ask_button)
+        self.conv_list = Gtk.ListBox()
+        self._add_class(self.conv_list, "conv-list")
+        self.conv_list.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.conv_list.set_hexpand(True)
+        self._conv_scroll.add(self.conv_list)
 
+        # Input bar — single Entry + Send button
+        input_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self.coach_page.pack_start(input_row, False, False, 0)
+
+        self.conv_entry = Gtk.Entry()
+        self.conv_entry.set_hexpand(True)
+        self.conv_entry.set_placeholder_text("Ask a question or reply to the coach…")
+        self.conv_entry.connect("activate", self.on_conv_send)
+        input_row.pack_start(self.conv_entry, True, True, 0)
+
+        self.conv_send_button = Gtk.Button(label="Send")
+        self.conv_send_button.connect("clicked", self.on_conv_send)
+        input_row.pack_start(self.conv_send_button, False, False, 0)
+
+        # Utility row kept at the bottom
+        util_row = self._make_wrapping_flow()
+        self.coach_page.pack_start(util_row, False, False, 0)
         self.refresh_engine_button = Gtk.Button(label="Refresh AI Status")
         self.refresh_engine_button.connect("clicked", self.on_refresh_engine_clicked)
-        coach_actions.add(self.refresh_engine_button)
-
-        self.coach_view = self._make_text_view()
-        self.coach_page.pack_start(self._frame("Coach Conversation", self.coach_view), True, True, 0)
+        util_row.add(self.refresh_engine_button)
 
     def _build_model_provider_page(self) -> None:
         intro = Gtk.Label(
@@ -1082,17 +1166,199 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             lines.append(f"- {mode.get('label')}: {state}. {mode.get('message', '')}")
         self._set_text(self.model_provider_view, "\n".join(lines))
 
+    # ------------------------------------------------------------------
+    # Conversation bubble helpers
+    # ------------------------------------------------------------------
+
+    def _on_diagnostics_loading(self, msg: str) -> None:
+        """Called synchronously on the main thread before the diagnostic worker starts."""
+        self._set_status(msg)
+        self._set_conv_input_sensitive(False)
+        self._show_typing_indicator()
+
+    def _append_agent_bubble(self, text: str) -> Gtk.Label:
+        """Add a left-aligned agent bubble to the conversation list. Returns the inner label."""
+        row = Gtk.ListBoxRow()
+        row.set_activatable(False)
+        row.set_selectable(False)
+
+        outer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        outer.set_hexpand(True)
+
+        bubble_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self._add_class(bubble_box, "bubble-agent")
+        bubble_box.set_halign(Gtk.Align.START)
+
+        label = Gtk.Label(label=text)
+        label.set_xalign(0)
+        label.set_line_wrap(True)
+        label.set_selectable(True)
+        label.set_max_width_chars(60)
+        bubble_box.pack_start(label, False, False, 0)
+
+        outer.pack_start(bubble_box, False, False, 0)
+        row.add(outer)
+        self.conv_list.add(row)
+        row.show_all()
+        GLib.idle_add(self._scroll_conv_to_bottom)
+        return label
+
+    def _append_user_bubble(self, text: str) -> None:
+        """Add a right-aligned user bubble to the conversation list."""
+        row = Gtk.ListBoxRow()
+        row.set_activatable(False)
+        row.set_selectable(False)
+
+        outer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        outer.set_hexpand(True)
+
+        bubble_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self._add_class(bubble_box, "bubble-user")
+        bubble_box.set_halign(Gtk.Align.END)
+
+        label = Gtk.Label(label=text)
+        label.set_xalign(0)
+        label.set_line_wrap(True)
+        label.set_selectable(True)
+        label.set_max_width_chars(50)
+        bubble_box.pack_start(label, False, False, 0)
+
+        outer.pack_end(bubble_box, False, False, 0)
+        row.add(outer)
+        self.conv_list.add(row)
+        row.show_all()
+        GLib.idle_add(self._scroll_conv_to_bottom)
+
+    def _append_system_bubble(self, text: str) -> None:
+        """Add a muted system note to the conversation list."""
+        row = Gtk.ListBoxRow()
+        row.set_activatable(False)
+        row.set_selectable(False)
+
+        label = Gtk.Label(label=text)
+        self._add_class(label, "bubble-system")
+        label.set_xalign(0)
+        label.set_line_wrap(True)
+        label.set_max_width_chars(72)
+        label.set_hexpand(True)
+
+        row.add(label)
+        self.conv_list.add(row)
+        row.show_all()
+        GLib.idle_add(self._scroll_conv_to_bottom)
+
+    def _show_typing_indicator(self) -> None:
+        """Insert a typing-indicator row at the bottom of the conversation list."""
+        if self._typing_row is not None:
+            return
+        row = Gtk.ListBoxRow()
+        row.set_activatable(False)
+        row.set_selectable(False)
+
+        outer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        label = Gtk.Label(label="Coach is thinking…")
+        self._add_class(label, "bubble-typing")
+        label.set_halign(Gtk.Align.START)
+        outer.pack_start(label, False, False, 0)
+        row.add(outer)
+        self.conv_list.add(row)
+        row.show_all()
+        self._typing_row = row
+        GLib.idle_add(self._scroll_conv_to_bottom)
+
+    def _hide_typing_indicator(self) -> None:
+        """Remove the typing-indicator row from the conversation list."""
+        if self._typing_row is None:
+            return
+        self.conv_list.remove(self._typing_row)
+        self._typing_row = None
+
+    def _scroll_conv_to_bottom(self) -> bool:
+        """Scroll the conversation list to the bottom. Returns False for GLib idle compatibility."""
+        if not hasattr(self, "_conv_scroll"):
+            return False
+        adj = self._conv_scroll.get_vadjustment()
+        adj.set_value(adj.get_upper() - adj.get_page_size())
+        return False
+
+    def _set_conv_input_sensitive(self, sensitive: bool) -> None:
+        """Enable or disable the conversation input bar."""
+        if hasattr(self, "conv_entry"):
+            self.conv_entry.set_sensitive(sensitive)
+        if hasattr(self, "conv_send_button"):
+            self.conv_send_button.set_sensitive(sensitive)
+
+    def _add_reply_chips(self, options: list[str]) -> None:
+        """Add a row of suggested-reply chip buttons below the last agent bubble."""
+        if not options or not hasattr(self, "conv_list"):
+            return
+        row = Gtk.ListBoxRow()
+        row.set_activatable(False)
+        row.set_selectable(False)
+
+        flow = Gtk.FlowBox()
+        flow.set_selection_mode(Gtk.SelectionMode.NONE)
+        flow.set_column_spacing(6)
+        flow.set_row_spacing(4)
+        flow.set_max_children_per_line(8)
+        flow.set_homogeneous(False)
+        flow.set_halign(Gtk.Align.START)
+
+        for option in options:
+            btn = Gtk.Button(label=option)
+            self._add_class(btn, "reply-chip")
+            btn.connect("clicked", self._on_chip_clicked, option, row)
+            flow.add(btn)
+
+        row.add(flow)
+        self.conv_list.add(row)
+        row.show_all()
+        GLib.idle_add(self._scroll_conv_to_bottom)
+
+    def _on_chip_clicked(self, _button: Gtk.Button, option: str, chip_row: Gtk.ListBoxRow) -> None:
+        """Remove the chip row and submit the option text as a user message."""
+        if hasattr(self, "conv_list"):
+            self.conv_list.remove(chip_row)
+        self.conv_entry.set_text(option)
+        self.on_conv_send(None)
+
+    # ------------------------------------------------------------------
+    # Conversation event handlers (from agent_conversation worker thread)
+    # ------------------------------------------------------------------
+
     def _on_conv_event(self, event_type: str, payload: dict) -> None:
         """Receive conversation engine events from the worker thread; schedule GTK updates via idle_add."""
         if event_type == agent_conversation.EVENT_AGENT_TOKEN:
-            GLib.idle_add(self._on_greeting_token, payload.get("token", ""))
+            GLib.idle_add(self._on_streaming_token, payload.get("token", ""))
         elif event_type == agent_conversation.EVENT_SESSION_DONE and "greeting" in payload:
-            GLib.idle_add(self._set_status, "Ready — coach greeting complete.")
+            GLib.idle_add(self._on_greeting_done, payload.get("greeting", ""))
         elif event_type == agent_conversation.EVENT_ERROR:
             GLib.idle_add(self._set_status, f"Coach: {payload.get('error', 'unknown error')}")
 
-    def _on_greeting_token(self, token: str) -> bool:
-        self._append_text(self.coach_view, f"Coach: {token}")
+    def _on_streaming_token(self, token: str) -> bool:
+        """Handle an agent_token event: create or extend the active agent bubble."""
+        self._hide_typing_indicator()
+        if self._active_bubble_label is None:
+            self._active_bubble_label = self._append_agent_bubble(token)
+        else:
+            current = self._active_bubble_label.get_text()
+            self._active_bubble_label.set_text(current + token)
+            GLib.idle_add(self._scroll_conv_to_bottom)
+        return False
+
+    def _on_greeting_done(self, greeting_text: str) -> bool:
+        """Handle session_done for the greeting: clear active bubble, show chips, re-enable input."""
+        self._active_bubble_label = None
+        self._hide_typing_indicator()
+        self._set_conv_input_sensitive(True)
+        self._set_status("Ready — coach greeting complete.")
+        if greeting_text == agent_conversation.GREETING_HEALTHY:
+            chips = ["What should I focus on next?", "What should I learn?"]
+        elif greeting_text == agent_conversation.GREETING_PARTIAL_FAILURE:
+            chips = ["Try diagnostics again"]
+        else:
+            chips = ["Walk me through the findings", "Where should I start?"]
+        self._add_reply_chips(chips)
         return False
 
     def on_refresh_provider_clicked(self, _button: Gtk.Button | None) -> None:
@@ -1212,9 +1478,8 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             )
             or "No command log available.",
         )
-        self._append_text(
-            self.coach_view,
-            "System: Review complete. Ask the coach things like what stands out, what to learn next, or how the tools fit together.",
+        self._append_system_bubble(
+            "System: Review complete. Ask the coach what stands out, what to learn next, or how the tools fit together."
         )
         self._hide_working_drama()
         self._set_status("Review complete. Explore the desktop app panels to learn the environment.")
@@ -1301,9 +1566,8 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
                 sections.append(f"  permission limits: {', '.join(scan['permission_errors'][:5])}")
 
         self._set_text(self.map_results_view, "\n".join(sections))
-        self._append_text(
-            self.coach_view,
-            "System: Filesystem map complete. You can now ask the coach what the selected roots reveal about the machine.",
+        self._append_system_bubble(
+            "System: Filesystem map complete. Ask the coach what the selected roots reveal about the machine."
         )
         self._hide_working_drama()
         self._set_status("Filesystem map complete.")
@@ -1368,9 +1632,8 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
                 "No approval-required maintenance plans were prepared from the current diagnostics.",
             )
 
-        self._append_text(
-            self.coach_view,
-            "System: Maintenance diagnostics complete. Ask the coach which finding to inspect first or how to prepare an approval-safe plan.",
+        self._append_system_bubble(
+            "System: Maintenance diagnostics complete. Ask the coach which finding to inspect first."
         )
         executable_backlog = self._maintenance_backlog_plans()
         if executable_backlog:
@@ -2651,8 +2914,8 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
             self.request_entry.set_text(prompt)
             self.on_request_send(None)
             return
-        self.coach_question_entry.set_text(prompt)
-        self.on_ask_coach(None)
+        self.conv_entry.set_text(prompt)
+        self.on_conv_send(None)
 
     def _append_request_message(self, speaker: str, text: str) -> None:
         self._append_text(self.request_thread_view, f"{speaker}: {text}")
@@ -2872,8 +3135,8 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         record_request_plan(plan)
         formatted = format_request_plan(plan)
         self._set_text(self.request_plan_view, self._plain_plan_summary(plan))
-        self._append_text(self.coach_view, f"You: {request_text}")
-        self._append_text(self.coach_view, f"Plan [{plan['platform']}]:\n{formatted}")
+        self._append_user_bubble(request_text)
+        self._append_agent_bubble(f"Plan [{plan['platform']}]:\n{formatted}")
         self._append_request_message(
             "Request Desk",
             (
@@ -2897,13 +3160,15 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
         self._refresh_approval_queue()
         self._set_status("Request Desk conversation cleared.")
 
-    def on_ask_coach(self, _widget: Gtk.Widget | None) -> None:
-        question = self.coach_question_entry.get_text().strip()
+    def on_conv_send(self, _widget: Gtk.Widget | None) -> None:
+        question = self.conv_entry.get_text().strip()
         if not question:
             self._set_status("Type a question for the coach first.")
             return
-        self.ask_button.set_sensitive(False)
-        self._append_text(self.coach_view, f"You: {question}")
+        self.conv_entry.set_text("")
+        self._set_conv_input_sensitive(False)
+        self._append_user_bubble(question)
+        self._show_typing_indicator()
         self._show_working_drama("Coach is thinking", "Asking the local engine to explain the current system context.")
         self._set_status("Local AI is thinking...")
         threading.Thread(target=self._ask_coach_worker, args=(question,), daemon=True).start()
@@ -2926,8 +3191,9 @@ class SystemCoachWindow(Gtk.ApplicationWindow):
 
     def _apply_coach_answer(self, response: dict) -> bool:
         model = response.get("model") or "local engine unavailable"
-        self._append_text(self.coach_view, f"Coach [{model}]: {response['answer']}")
-        self.ask_button.set_sensitive(True)
+        self._hide_typing_indicator()
+        self._append_agent_bubble(f"[{model}]: {response['answer']}")
+        self._set_conv_input_sensitive(True)
         self._refresh_engine_status()
         self._hide_working_drama()
         self._set_status("Coach answer ready.")
