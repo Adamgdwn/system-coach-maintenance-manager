@@ -30,3 +30,16 @@ using the same operating rules.
 
 ## Completion standard
 A task is not complete until relevant validation is run or a blocker is clearly stated.
+
+## Day Closeout
+
+When Adam or an agent discusses locking down, closing out, wrapping the day,
+stopping for the night, or handing off before a break, update the shared work
+ledger as a required final step before the last response:
+
+1. Update `/home/adamgoodwin/code/01 Work Tracking/system-coach-maintenance-manager/latest.md`
+2. Add today's entry at the **top** of `/home/adamgoodwin/code/01 Work Tracking/system-coach-maintenance-manager/log/YYYY-MM-DD.md`
+3. Update `/home/adamgoodwin/code/01 Work Tracking/01 Work Tracking/latest.md`
+4. Add an entry at the top of `/home/adamgoodwin/code/01 Work Tracking/01 Work Tracking/log/YYYY-MM-DD.md`
+5. Follow the format and rules in `/home/adamgoodwin/code/01 Work Tracking/README.md`
+6. State in the final response that work tracking was updated.
