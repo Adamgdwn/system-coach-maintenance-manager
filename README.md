@@ -30,6 +30,14 @@ Before opening a GitHub issue, read `SUPPORT.md` and `docs/privacy-and-safety.md
 
 GitHub pull requests run CI for governance preflight, unit tests, compile checks, browser JavaScript syntax, secret-pattern scanning, and a browser API smoke test.
 
+## Shareable Project Snapshot
+
+- **Audience:** developers and system owners who want a local-first explanation of what is installed, what looks unhealthy, and what maintenance actions are safe to consider.
+- **Best for:** learning an unfamiliar development machine, reviewing local tooling, and preparing supervised maintenance plans.
+- **Safety model:** diagnose and explain first; execute only catalogued, approval-required plans.
+- **Privacy model:** local by default, bring-your-own-provider only, and no bundled API keys.
+- **Contributions:** issues and pull requests are welcome when they preserve the local-first, supervised execution model. See `CONTRIBUTING.md`, `SECURITY.md`, and `SUPPORT.md`.
+
 ## Screenshots
 
 Screenshots below are sanitized examples from browser fallback mode. Your machine profile, available commands, model status, desktop session, and maintenance findings will differ.
